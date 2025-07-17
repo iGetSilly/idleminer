@@ -1,0 +1,1550 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Minerador Incremental - Fase 1</title>
+    <style>
+      body {
+        font-family: "Inter", sans-serif;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        min-height: 100vh;
+        background-color: #1a202c;
+        color: #e2e8f0;
+        margin: 0;
+        padding: 20px;
+        box-sizing: border-box;
+      }
+
+      .game-container {
+        background-color: #2d3748;
+        padding: 25px;
+        border-radius: 12px;
+        box-shadow: 0 10px 15px rgba(0, 0, 0, 0.3);
+        text-align: center;
+        width: 100%;
+        max-width: 700px;
+        box-sizing: border-box;
+        border: 1px solid #4a5568;
+      }
+
+      h1,
+      h2 {
+        color: #f6ad55;
+      }
+
+      h1 {
+        font-size: 1.8em;
+        margin-bottom: 10px;
+      }
+
+      h2 {
+        margin-bottom: 15px;
+        font-size: 1.5em;
+      }
+
+      .stats-container {
+        display: flex;
+        justify-content: space-around;
+        align-items: center;
+        flex-wrap: wrap;
+        gap: 20px;
+        margin-bottom: 10px;
+      }
+
+      .gold-display {
+        font-size: 2.2em;
+        font-weight: bold;
+        color: #ecc94b;
+      }
+
+      .xp-container {
+        width: 100%;
+        max-width: 300px;
+        position: relative;
+      }
+
+      .level-display {
+        font-size: 1.1em;
+        font-weight: bold;
+        margin-bottom: 5px;
+        color: #90cdf4;
+      }
+
+      .next-unlock-goal {
+        font-size: 0.9em;
+        color: #a0aec0;
+        margin-top: 5px;
+        height: 1.2em; /* Reserve space to prevent layout shift */
+      }
+
+      .xp-bar {
+        width: 100%;
+        height: 22px;
+        background-color: #4a5568;
+        border-radius: 11px;
+        overflow: hidden;
+        border: 1px solid #718096;
+        position: relative;
+      }
+
+      .xp-bar-fill {
+        height: 100%;
+        width: 0%;
+        background-color: #63b3ed;
+        border-radius: 11px;
+        transition: width 0.2s ease-in-out;
+      }
+
+      .xp-bar-text {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 0.8em;
+        color: #1a202c;
+        font-weight: bold;
+      }
+
+      .tab-buttons {
+        display: flex;
+        justify-content: center;
+        margin-bottom: 20px;
+        margin-top: 15px;
+        gap: 10px;
+      }
+
+      .tab-button {
+        background-color: #4a5568;
+        color: white;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 8px;
+        font-size: 1em;
+        cursor: pointer;
+        transition: background-color 0.2s ease;
+      }
+
+      .tab-button:hover {
+        background-color: #6b7280;
+      }
+
+      .tab-button.active {
+        background-color: #3182ce;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+      }
+
+      .tab-content {
+        display: none;
+      }
+
+      .tab-content.active {
+        display: block;
+      }
+
+      .click-button {
+        background-color: #48bb78;
+        color: white;
+        padding: 15px 30px;
+        border: none;
+        border-radius: 8px;
+        font-size: 1.2em;
+        font-weight: bold;
+        cursor: pointer;
+        transition: background-color 0.2s ease, transform 0.1s ease;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+        width: 90%;
+        max-width: 250px;
+        margin: 20px 0;
+      }
+
+      .click-button:hover {
+        background-color: #38a169;
+        transform: translateY(-2px);
+      }
+
+      .click-button:active {
+        transform: translateY(0);
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+      }
+
+      .section-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 15px;
+      }
+
+      .section-header h2 {
+        margin: 0;
+      }
+
+      .multiplier-controls {
+        display: flex;
+        gap: 5px;
+      }
+
+      .control-button {
+        background-color: #4a5568;
+        color: white;
+        border: 1px solid #718096;
+        padding: 5px 10px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 0.8em;
+      }
+
+      .control-button.active {
+        background-color: #3182ce;
+        border-color: #3182ce;
+      }
+
+      .resources-section,
+      .upgrades-section,
+      .furnace-section {
+        margin-top: 20px;
+        border-top: 1px solid #4a5568;
+        padding-top: 20px;
+      }
+
+      .production-stats {
+        display: flex;
+        justify-content: space-evenly;
+        background-color: #1a202c;
+        padding: 10px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+      }
+
+      .resources-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+        gap: 15px;
+        margin-bottom: 20px;
+      }
+
+      .resource-item {
+        background-color: #4a5568;
+        padding: 10px;
+        border-radius: 8px;
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+        min-height: 130px;
+      }
+
+      .resource-item h3 {
+        margin: 0 0 2px 0;
+        color: #cbd5e0;
+        font-size: 1em;
+      }
+
+      .resource-item .value-text {
+        font-size: 0.8em;
+        color: #a0aec0;
+        font-weight: normal;
+        margin: 0;
+      }
+
+      .resource-item p {
+        margin: 0;
+        font-size: 1.2em;
+        font-weight: bold;
+        color: #ecc94b;
+      }
+
+      .resource-stats {
+        font-size: 0.8em;
+        color: #a0aec0;
+        margin-top: 8px;
+      }
+
+      .sell-button {
+        background-color: #ed8936;
+        color: white;
+        padding: 8px 12px;
+        border: none;
+        border-radius: 6px;
+        font-size: 0.9em;
+        cursor: pointer;
+        transition: background-color 0.2s ease;
+        margin-top: 10px;
+      }
+
+      .sell-button:hover:not(:disabled) {
+        background-color: #dd6b20;
+      }
+
+      .sell-button:disabled {
+        background-color: #6b7280;
+        cursor: not-allowed;
+        opacity: 0.7;
+      }
+
+      .upgrade-item,
+      .recipe-item {
+        background-color: #4a5568;
+        padding: 15px;
+        margin-bottom: 15px;
+        border-radius: 8px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+      }
+
+      .upgrade-info,
+      .recipe-info {
+        text-align: left;
+        flex-grow: 1;
+        width: 100%;
+      }
+
+      .upgrade-info h3,
+      .recipe-info h3 {
+        margin: 0 0 8px 0;
+        color: #cbd5e0;
+        font-size: 1.1em;
+      }
+
+      .upgrade-info p,
+      .recipe-info p {
+        margin: 0;
+        font-size: 0.9em;
+        color: #a0aec0;
+        line-height: 1.5;
+      }
+
+      .upgrade-benefit {
+        color: #90cdf4;
+        font-weight: bold;
+      }
+
+      .buy-button,
+      .craft-button {
+        background-color: #3182ce;
+        color: white;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 6px;
+        font-size: 1em;
+        cursor: pointer;
+        transition: background-color 0.2s ease, transform 0.1s ease;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+        width: 100%;
+        max-width: 150px;
+      }
+
+      .buy-button:hover:not(:disabled),
+      .craft-button:hover:not(:disabled) {
+        background-color: #2b6cb0;
+        transform: translateY(-1px);
+      }
+
+      .buy-button:disabled,
+      .craft-button:disabled {
+        background-color: #6b7280;
+        cursor: not-allowed;
+        opacity: 0.7;
+      }
+
+      .craft-progress {
+        width: 100%;
+        background-color: #4a5568;
+        border-radius: 4px;
+        overflow: hidden;
+        margin-top: 5px;
+        height: 10px;
+      }
+
+      .craft-progress-bar {
+        height: 100%;
+        width: 0%;
+        background-color: #48bb78;
+        border-radius: 4px;
+        transition: width 0.1s linear;
+      }
+
+      .craft-time-text {
+        font-size: 0.8em;
+        height: 1.2em;
+        margin-top: 4px;
+        color: #a0aec0;
+      }
+
+      .auto-toggle-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 5px;
+        font-size: 0.9em;
+        color: #cbd5e0;
+      }
+
+      .auto-toggle-button {
+        background-color: #6b7280;
+        color: white;
+        padding: 4px 12px;
+        border: none;
+        border-radius: 12px;
+        font-size: 0.9em;
+        cursor: pointer;
+        transition: background-color 0.2s ease;
+        width: 50px;
+      }
+
+      .auto-toggle-button.active {
+        background-color: #48bb78;
+      }
+
+      @media (min-width: 600px) {
+        .upgrade-item,
+        .recipe-item {
+          flex-direction: row;
+        }
+        .upgrade-info,
+        .recipe-info {
+          width: auto;
+        }
+        .buy-button,
+        .craft-button {
+          width: auto;
+        }
+        .recipe-item {
+          align-items: center;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="game-container">
+      <h1>Minerador Incremental</h1>
+
+      <div class="stats-container">
+        <div class="gold-display"><span id="goldCount">0</span> Moedas</div>
+        <div class="xp-container">
+          <div id="levelDisplay" class="level-display">
+            Nível de Mineração 1
+          </div>
+          <div class="xp-bar">
+            <div id="xpBarFill" class="xp-bar-fill"></div>
+            <div id="xpBarText" class="xp-bar-text">0 / 200 XP</div>
+          </div>
+          <div id="nextUnlockGoal" class="next-unlock-goal"></div>
+        </div>
+      </div>
+
+      <div class="tab-buttons">
+        <button id="miningTabButton" class="tab-button active">
+          Mineração
+        </button>
+        <button id="furnaceTabButton" class="tab-button">Fornalha</button>
+      </div>
+
+      <!-- Conteúdo da Aba de Mineração -->
+      <div id="miningTab" class="tab-content active">
+        <div id="miningProductionStats" class="production-stats">
+          <!-- Estatísticas de produção geradas via JS -->
+        </div>
+
+        <button id="mineButton" class="click-button">Minar Terra</button>
+
+        <div class="resources-section">
+          <div class="section-header">
+            <h2>Seus Recursos</h2>
+            <div id="resourceSellControls" class="multiplier-controls"></div>
+          </div>
+          <div id="resourcesGrid" class="resources-grid">
+            <!-- Recursos gerados via JS -->
+          </div>
+        </div>
+
+        <div class="upgrades-section">
+          <div class="section-header">
+            <h2>Melhorias de Mineração</h2>
+            <div
+              id="upgradeMultiplierControls"
+              class="multiplier-controls"
+            ></div>
+          </div>
+          <div id="miningUpgradesSection">
+            <!-- Melhorias geradas via JS -->
+          </div>
+        </div>
+      </div>
+
+      <!-- Conteúdo da Aba de Fornalha -->
+      <div id="furnaceTab" class="tab-content">
+        <div class="resources-section">
+          <div class="section-header">
+            <h2>Recursos Fundidos</h2>
+            <div id="ingotSellControls" class="multiplier-controls"></div>
+          </div>
+          <div id="furnaceResourcesGrid" class="resources-grid">
+            <!-- Lingotes gerados via JS -->
+          </div>
+        </div>
+
+        <div class="furnace-section">
+          <h2>Receitas de Fundição</h2>
+          <div id="furnaceRecipes">
+            <!-- Receitas geradas via JS -->
+          </div>
+        </div>
+
+        <div class="upgrades-section">
+          <h2>Melhorias da Fornalha</h2>
+          <div id="furnaceUpgrades">
+            <!-- Melhorias da fornalha geradas via JS -->
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      // --- ESTADO DO JOGO ---
+      const state = {
+        gold: 0,
+        miningLevel: 1,
+        currentXp: 0,
+        dirtPerSecond: 0,
+        dirtPerClick: 1,
+        sellMultiplier: 1, // 1 = 100%
+        upgradeMultiplier: 1, // 1, 5, 10, 25, 'MAX'
+        resources: {
+          dirt: 0,
+          stone: 0,
+          copper: 0,
+          tin: 0,
+          iron: 0,
+          coal: 0,
+          bronzeIngot: 0,
+          ironIngot: 0,
+          steelIngot: 0,
+        },
+        upgrades: {
+          miners: { level: 0, baseCost: 100, costMultiplier: 1.15 },
+          pickaxe: { level: 0, baseCost: 500, costMultiplier: 1.2 },
+        },
+        furnace: {
+          automate: { level: 0, baseCost: 1000, unlocked: false },
+          slots: { level: 1, baseCost: 2000, costMultiplier: 1.8 },
+          ingotsPerCraft: { level: 0, baseCost: 1500, costMultiplier: 1.6 },
+          timeReduction: {
+            level: 0,
+            baseCost: 2500,
+            costMultiplier: 1.7,
+            reduction: 0,
+          },
+          activeCrafts: [],
+          automatedRecipes: new Set(),
+        },
+      };
+
+      // --- DADOS DE BALANCEAMENTO ---
+      const xpPerLevelFormula = (level) =>
+        Math.floor(200 * Math.pow(1.4, level - 1));
+
+      const oreData = {
+        dirt: {
+          displayName: "Terra",
+          value: 1,
+          xpValue: 1,
+          unlocked: true,
+          level: 1,
+        },
+        stone: {
+          displayName: "Pedra",
+          value: 5,
+          xpValue: 10,
+          unlocked: false,
+          level: 0,
+          unlockLevel: 5,
+          unlockCost: 200,
+          upgradeBaseCost: 50,
+          costMultiplier: 1.18,
+          baseClickChance: 0.08,
+          clickChancePerLevel: 0.004,
+          baseAutoChance: 0.008,
+          autoChancePerLevel: 0.0004,
+        },
+        copper: {
+          displayName: "Cobre",
+          value: 10,
+          xpValue: 35,
+          unlocked: false,
+          level: 0,
+          unlockLevel: 8,
+          unlockCost: 500,
+          upgradeBaseCost: 100,
+          costMultiplier: 1.22,
+          baseClickChance: 0.05,
+          clickChancePerLevel: 0.003,
+          baseAutoChance: 0.005,
+          autoChancePerLevel: 0.0003,
+        },
+        tin: {
+          displayName: "Estanho",
+          value: 15,
+          xpValue: 35,
+          unlocked: false,
+          level: 0,
+          unlockLevel: 8,
+          unlockCost: 750,
+          upgradeBaseCost: 150,
+          costMultiplier: 1.28,
+          baseClickChance: 0.04,
+          clickChancePerLevel: 0.0025,
+          baseAutoChance: 0.004,
+          autoChancePerLevel: 0.00025,
+        },
+        iron: {
+          displayName: "Ferro",
+          value: 20,
+          xpValue: 90,
+          unlocked: false,
+          level: 0,
+          unlockLevel: 12,
+          unlockCost: 1000,
+          upgradeBaseCost: 200,
+          costMultiplier: 1.35,
+          baseClickChance: 0.025,
+          clickChancePerLevel: 0.002,
+          baseAutoChance: 0.0025,
+          autoChancePerLevel: 0.0002,
+        },
+        coal: {
+          displayName: "Carvão",
+          value: 25,
+          xpValue: 220,
+          unlocked: false,
+          level: 0,
+          unlockLevel: 15,
+          unlockCost: 1200,
+          upgradeBaseCost: 250,
+          costMultiplier: 1.4,
+          baseClickChance: 0.02,
+          clickChancePerLevel: 0.0015,
+          baseAutoChance: 0.002,
+          autoChancePerLevel: 0.00015,
+        },
+      };
+
+      const ingotData = {
+        bronzeIngot: {
+          displayName: "Lingote de Bronze",
+          value: 50,
+          inputs: { copper: 1, tin: 1 },
+          baseCraftTime: 5000,
+        },
+        ironIngot: {
+          displayName: "Lingote de Ferro",
+          value: 60,
+          inputs: { iron: 2 },
+          baseCraftTime: 8000,
+        },
+        steelIngot: {
+          displayName: "Lingote de Aço",
+          value: 100,
+          inputs: { iron: 1, coal: 1 },
+          baseCraftTime: 12000,
+        },
+      };
+
+      const bonusLevels = [10, 25, 50, 75, 100];
+      const bonusQuantities = { 10: 5, 25: 15, 50: 50, 75: 100, 100: 250 };
+
+      // --- LÓGICA DO JOGO ---
+
+      function formatNumber(num, decimals = 2) {
+        if (num < 1000) return num.toFixed(0);
+        if (num < 1000000) return (num / 1000).toFixed(decimals) + "k";
+        if (num < 1000000000) return (num / 1000000).toFixed(decimals) + "M";
+        return (num / 1000000000).toFixed(decimals) + "B";
+      }
+
+      function calculateCost(base, multiplier, level, isBonusLevel) {
+        let cost = Math.floor(base * Math.pow(multiplier, level));
+        if (isBonusLevel) {
+          cost *= 2;
+        }
+        return cost;
+      }
+
+      function addXp(amount) {
+        state.currentXp += amount;
+        const requiredXp = xpPerLevelFormula(state.miningLevel);
+        if (state.currentXp >= requiredXp) {
+          levelUp(requiredXp);
+        }
+      }
+
+      function levelUp(requiredXp) {
+        while (state.currentXp >= requiredXp) {
+          state.currentXp -= requiredXp;
+          state.miningLevel++;
+          requiredXp = xpPerLevelFormula(state.miningLevel);
+        }
+        updateMiningUpgrades();
+        buildFurnaceUI();
+      }
+
+      function mineOres() {
+        state.resources.dirt += state.dirtPerClick;
+        addXp(oreData.dirt.xpValue * state.dirtPerClick);
+
+        for (const oreKey in oreData) {
+          if (oreKey === "dirt" || !oreData[oreKey].unlocked) continue;
+
+          const ore = oreData[oreKey];
+          const chance =
+            ore.baseClickChance + ore.level * ore.clickChancePerLevel;
+
+          if (Math.random() < chance) {
+            let amount = 1;
+            bonusLevels.forEach((bonusLevel) => {
+              if (ore.level >= bonusLevel && bonusQuantities[bonusLevel]) {
+                amount += bonusQuantities[bonusLevel];
+              }
+            });
+            state.resources[oreKey] += amount;
+            addXp(ore.xpValue * amount);
+          }
+        }
+      }
+
+      function autoMineOres() {
+        state.resources.dirt += state.dirtPerSecond;
+        addXp(oreData.dirt.xpValue * state.dirtPerSecond);
+
+        for (const oreKey in oreData) {
+          if (oreKey === "dirt" || !oreData[oreKey].unlocked) continue;
+
+          const ore = oreData[oreKey];
+          const chance =
+            ore.baseAutoChance + ore.level * ore.autoChancePerLevel;
+
+          if (Math.random() < chance * state.dirtPerSecond) {
+            let amount = 1;
+            bonusLevels.forEach((bonusLevel) => {
+              if (ore.level >= bonusLevel && bonusQuantities[bonusLevel]) {
+                amount += bonusQuantities[bonusLevel];
+              }
+            });
+            state.resources[oreKey] += amount;
+            addXp(ore.xpValue * amount);
+          }
+        }
+      }
+
+      function calculateProduction(type) {
+        const upgrade = state.upgrades[type];
+        if (type === "miners") {
+          let production = 0;
+          for (let i = 1; i <= upgrade.level; i++) {
+            production += 1 * Math.pow(1.05, i - 1);
+            if (bonusLevels.includes(i)) {
+              production += bonusQuantities[i];
+            }
+          }
+          return production;
+        }
+        if (type === "pickaxe") {
+          let production = 1 + upgrade.level;
+          bonusLevels.forEach((bonusLevel) => {
+            if (upgrade.level >= bonusLevel) {
+              production += bonusQuantities[bonusLevel];
+            }
+          });
+          return production;
+        }
+        return 0;
+      }
+
+      function recalculateProductionStats() {
+        state.dirtPerSecond = calculateProduction("miners");
+        state.dirtPerClick = calculateProduction("pickaxe");
+        updateMiningProductionStats();
+      }
+
+      function startCrafting(ingotKey) {
+        const recipe = ingotData[ingotKey];
+        const furnaceState = state.furnace;
+
+        if (
+          furnaceState.activeCrafts.some((c) => c.key === ingotKey) ||
+          furnaceState.activeCrafts.length >= furnaceState.slots.level
+        )
+          return;
+
+        let canCraft = true;
+        for (const resource in recipe.inputs) {
+          if (state.resources[resource] < recipe.inputs[resource]) {
+            canCraft = false;
+            break;
+          }
+        }
+
+        if (canCraft) {
+          for (const resource in recipe.inputs) {
+            state.resources[resource] -= recipe.inputs[resource];
+          }
+          const craftTime =
+            recipe.baseCraftTime * (1 - furnaceState.timeReduction.reduction);
+          furnaceState.activeCrafts.push({
+            key: ingotKey,
+            progress: 0,
+            totalTime: craftTime,
+          });
+          updateFurnaceRecipes();
+        }
+      }
+
+      function processFurnace() {
+        const furnaceState = state.furnace;
+        if (furnaceState.automate.unlocked) {
+          furnaceState.automatedRecipes.forEach((ingotKey) => {
+            if (!furnaceState.activeCrafts.some((c) => c.key === ingotKey)) {
+              startCrafting(ingotKey);
+            }
+          });
+        }
+
+        furnaceState.activeCrafts = furnaceState.activeCrafts.filter(
+          (craft) => {
+            craft.progress += 1000; // Game tick is 1000ms
+            if (craft.progress >= craft.totalTime) {
+              state.resources[craft.key] +=
+                1 + furnaceState.ingotsPerCraft.level;
+              updateFurnaceRecipes();
+              return false;
+            }
+            return true;
+          }
+        );
+      }
+
+      // --- FUNÇÕES DE ATUALIZAÇÃO DA UI ---
+
+      function updateDynamicUI() {
+        updateGoldDisplay();
+        updateXpDisplay();
+        updateResourceCounts();
+        updateFurnaceProgress();
+        updateButtonStates();
+      }
+
+      function updateFurnaceUI() {
+        updateFurnaceRecipes();
+        updateFurnaceUpgrades();
+      }
+
+      function updateGoldDisplay() {
+        document.getElementById("goldCount").textContent = formatNumber(
+          state.gold
+        );
+      }
+
+      function updateXpDisplay() {
+        const requiredXp = xpPerLevelFormula(state.miningLevel);
+        const percentage = Math.min((state.currentXp / requiredXp) * 100, 100);
+        document.getElementById(
+          "levelDisplay"
+        ).textContent = `Nível de Mineração ${state.miningLevel}`;
+        document.getElementById("xpBarFill").style.width = `${percentage}%`;
+        document.getElementById("xpBarText").textContent = `${formatNumber(
+          state.currentXp
+        )} / ${formatNumber(requiredXp)} XP`;
+
+        let nextGoalText = "Todos os minérios desbloqueados!";
+        for (const key in oreData) {
+          const ore = oreData[key];
+          if (ore.unlockLevel > state.miningLevel) {
+            nextGoalText = `Próximo: ${ore.displayName} (Nível ${ore.unlockLevel})`;
+            break;
+          }
+        }
+        document.getElementById("nextUnlockGoal").textContent = nextGoalText;
+      }
+
+      function updateMiningProductionStats() {
+        document.getElementById("miningProductionStats").innerHTML = `
+                <span>Terra/seg: <strong class="upgrade-benefit">${formatNumber(
+                  state.dirtPerSecond,
+                  2
+                )}</strong></span>
+                <span>Terra/clique: <strong class="upgrade-benefit">${formatNumber(
+                  state.dirtPerClick
+                )}</strong></span>
+            `;
+      }
+
+      function updateResourceCounts() {
+        Object.keys(state.resources).forEach((key) => {
+          const countElement = document.getElementById(`resource-count-${key}`);
+          if (countElement) {
+            countElement.textContent = formatNumber(state.resources[key]);
+          }
+        });
+      }
+
+      function updateButtonStates() {
+        updateMiningUpgrades();
+        updateFurnaceRecipes();
+        updateFurnaceUpgrades();
+      }
+
+      function buildFullUI() {
+        buildMultiplierControls();
+        buildResourcesUI();
+        buildMiningUpgradesUI();
+        buildFurnaceUI();
+      }
+
+      function buildMultiplierControls() {
+        const sellTargets = ["resourceSellControls", "ingotSellControls"];
+        const sellValues = [0.1, 0.25, 0.5, 0.75, 1];
+        const sellLabels = ["10%", "25%", "50%", "75%", "100%"];
+
+        sellTargets.forEach((targetId) => {
+          const container = document.getElementById(targetId);
+          container.innerHTML = "";
+          sellLabels.forEach((label, index) => {
+            const button = document.createElement("button");
+            button.className = "control-button";
+            button.textContent = label;
+            if (state.sellMultiplier === sellValues[index]) {
+              button.classList.add("active");
+            }
+            button.onclick = () => {
+              state.sellMultiplier = sellValues[index];
+              document
+                .querySelectorAll(`#${targetId} .control-button`)
+                .forEach((btn) => btn.classList.remove("active"));
+              button.classList.add("active");
+            };
+            container.appendChild(button);
+          });
+        });
+
+        const upgradeContainer = document.getElementById(
+          "upgradeMultiplierControls"
+        );
+        const upgradeValues = [1, 5, 10, 25, "MAX"];
+        upgradeContainer.innerHTML = "";
+        upgradeValues.forEach((value) => {
+          const button = document.createElement("button");
+          button.className = "control-button";
+          button.textContent = value === "MAX" ? value : `${value}x`;
+          if (state.upgradeMultiplier === value) {
+            button.classList.add("active");
+          }
+          button.onclick = () => {
+            state.upgradeMultiplier = value;
+            document
+              .querySelectorAll("#upgradeMultiplierControls .control-button")
+              .forEach((btn) => btn.classList.remove("active"));
+            button.classList.add("active");
+            updateMiningUpgrades();
+          };
+          upgradeContainer.appendChild(button);
+        });
+      }
+
+      function buildResourcesUI() {
+        const resourcesGrid = document.getElementById("resourcesGrid");
+        const furnaceGrid = document.getElementById("furnaceResourcesGrid");
+        resourcesGrid.innerHTML = "";
+        furnaceGrid.innerHTML = "";
+
+        Object.keys(oreData).forEach((key) => {
+          const data = oreData[key];
+          const item = document.createElement("div");
+          item.id = `resource-item-${key}`;
+          item.className = "resource-item";
+
+          let statsHTML = "";
+          if (key !== "dirt") {
+            statsHTML = `<div class="resource-stats" id="resource-stats-${key}"></div>`;
+          }
+
+          item.innerHTML = `
+                    <div>
+                        <h3>${data.displayName}</h3>
+                        <p class="value-text">Valor: ${data.value} Moedas</p>
+                    </div>
+                    <div>
+                        <p id="resource-count-${key}">0</p>
+                        ${statsHTML}
+                        <button class="sell-button" data-resource="${key}">Vender</button>
+                    </div>
+                `;
+          resourcesGrid.appendChild(item);
+        });
+
+        Object.keys(ingotData).forEach((key) => {
+          const data = ingotData[key];
+          const item = document.createElement("div");
+          item.id = `resource-item-${key}`;
+          item.className = "resource-item";
+          item.style.display = "none"; // Start hidden
+          item.innerHTML = `
+                    <div>
+                        <h3>${data.displayName}</h3>
+                        <p class="value-text">Valor: ${data.value} Moedas</p>
+                    </div>
+                    <div>
+                        <p id="resource-count-${key}">0</p>
+                        <button class="sell-button" data-resource="${key}">Vender</button>
+                    </div>
+                `;
+          furnaceGrid.appendChild(item);
+        });
+
+        document.querySelectorAll(".sell-button").forEach((button) => {
+          button.addEventListener("click", (e) => {
+            const resourceKey = e.target.dataset.resource;
+            const data = oreData[resourceKey] || ingotData[resourceKey];
+            if (data && state.resources[resourceKey] > 0) {
+              const amountToSell = Math.floor(
+                state.resources[resourceKey] * state.sellMultiplier
+              );
+              if (amountToSell > 0) {
+                state.gold += amountToSell * data.value;
+                state.resources[resourceKey] -= amountToSell;
+                updateDynamicUI();
+              }
+            }
+          });
+        });
+      }
+
+      function updateResourcesDisplay() {
+        Object.keys(oreData).forEach((key) => {
+          const data = oreData[key];
+          const item = document.getElementById(`resource-item-${key}`);
+          if (item) {
+            item.style.display = data.unlocked ? "flex" : "none";
+            const statsEl = document.getElementById(`resource-stats-${key}`);
+            if (statsEl) {
+              const clickChance =
+                (data.baseClickChance + data.level * data.clickChancePerLevel) *
+                100;
+              const autoChance =
+                (data.baseAutoChance + data.level * data.autoChancePerLevel) *
+                100;
+              statsEl.innerHTML = `
+                            <div>Chance/clique: ${clickChance.toFixed(2)}%</div>
+                            <div>Chance/seg: ${autoChance.toFixed(2)}%</div>
+                        `;
+            }
+          }
+        });
+        Object.keys(ingotData).forEach((key) => {
+          const item = document.getElementById(`resource-item-${key}`);
+          if (item) {
+            let canDisplay = true;
+            for (const resource in ingotData[key].inputs) {
+              if (!oreData[resource]?.unlocked) {
+                canDisplay = false;
+                break;
+              }
+            }
+            item.style.display = canDisplay ? "flex" : "none";
+          }
+        });
+      }
+
+      function createUpgradeElement(container, id, onBuy) {
+        const item = document.createElement("div");
+        item.id = `upgrade-item-${id}`;
+        item.className = "upgrade-item";
+        item.innerHTML = `
+                <div class="upgrade-info" id="upgrade-info-${id}"></div>
+                <button class="buy-button" id="buy-button-${id}">Comprar</button>
+            `;
+        container.appendChild(item);
+        document
+          .getElementById(`buy-button-${id}`)
+          .addEventListener("click", onBuy);
+      }
+
+      function buildMiningUpgradesUI() {
+        const container = document.getElementById("miningUpgradesSection");
+        container.innerHTML = "";
+
+        createUpgradeElement(container, "Miners", () => buyUpgrade("miners"));
+        createUpgradeElement(container, "Pickaxe", () => buyUpgrade("pickaxe"));
+
+        for (const oreKey in oreData) {
+          if (oreKey === "dirt") continue;
+          createUpgradeElement(container, oreKey, () => buyUpgrade(oreKey));
+        }
+      }
+
+      function buyUpgrade(key) {
+        const isOre = !!oreData[key];
+        const upgradeData = isOre ? oreData[key] : state.upgrades[key];
+
+        if (isOre && !upgradeData.unlocked) {
+          if (state.gold >= upgradeData.unlockCost) {
+            state.gold -= upgradeData.unlockCost;
+            upgradeData.unlocked = true;
+          }
+        } else {
+          let multiplier = state.upgradeMultiplier;
+          if (multiplier === "MAX") {
+            let tempGold = state.gold;
+            let levelsToBuy = 0;
+            let currentLevel = isOre ? upgradeData.level : upgradeData.level;
+            while (true) {
+              const cost = calculateCost(
+                isOre ? upgradeData.upgradeBaseCost : upgradeData.baseCost,
+                isOre ? upgradeData.costMultiplier : upgradeData.costMultiplier,
+                currentLevel,
+                bonusLevels.includes(currentLevel + 1)
+              );
+              if (tempGold >= cost) {
+                tempGold -= cost;
+                levelsToBuy++;
+                currentLevel++;
+              } else {
+                break;
+              }
+            }
+            multiplier = levelsToBuy;
+          }
+
+          for (let i = 0; i < multiplier; i++) {
+            const currentLevel = isOre ? upgradeData.level : upgradeData.level;
+            const cost = calculateCost(
+              isOre ? upgradeData.upgradeBaseCost : upgradeData.baseCost,
+              isOre ? upgradeData.costMultiplier : upgradeData.costMultiplier,
+              currentLevel,
+              bonusLevels.includes(currentLevel + 1)
+            );
+            if (state.gold >= cost) {
+              state.gold -= cost;
+              upgradeData.level++;
+            } else {
+              break; // Stop if we can't afford the next level in the sequence
+            }
+          }
+        }
+
+        if (!isOre) {
+          recalculateProductionStats();
+        }
+        updateMiningUpgrades();
+        updateResourcesDisplay();
+      }
+
+      function updateMiningUpgrades() {
+        // Miners and Pickaxe
+        const miners = state.upgrades.miners;
+        const pickaxe = state.upgrades.pickaxe;
+        const minerCost = calculateCost(
+          miners.baseCost,
+          miners.costMultiplier,
+          miners.level,
+          bonusLevels.includes(miners.level + 1)
+        );
+        const pickaxeCost = calculateCost(
+          pickaxe.baseCost,
+          pickaxe.costMultiplier,
+          pickaxe.level,
+          bonusLevels.includes(pickaxe.level + 1)
+        );
+        const nextMinerProd =
+          1 * Math.pow(1.05, miners.level) +
+          (bonusLevels.includes(miners.level + 1)
+            ? bonusQuantities[miners.level + 1]
+            : 0);
+        const nextPickaxeProd =
+          1 +
+          (bonusLevels.includes(pickaxe.level + 1)
+            ? bonusQuantities[pickaxe.level + 1]
+            : 0);
+
+        const nextMinerBonusLevel = bonusLevels.find((l) => l > miners.level);
+        let minerBonusText = "";
+        if (nextMinerBonusLevel) {
+          const bonusAmount = bonusQuantities[nextMinerBonusLevel];
+          minerBonusText = `<p>Próximo Bônus: <span class="upgrade-benefit">+${formatNumber(
+            bonusAmount
+          )}/seg</span> no Nível ${nextMinerBonusLevel}</p>`;
+        }
+
+        document.getElementById("upgrade-info-Miners").innerHTML = `
+                <h3>Mineiros (Nível ${miners.level})</h3>
+                <p>Benefício: <span class="upgrade-benefit">+${formatNumber(
+                  nextMinerProd,
+                  2
+                )} Terra/seg</span></p>
+                ${minerBonusText}
+                <p>Custo: ${formatNumber(minerCost)} moedas</p>`;
+        document.getElementById("buy-button-Miners").disabled =
+          state.gold < minerCost;
+
+        const nextPickaxeBonusLevel = bonusLevels.find(
+          (l) => l > pickaxe.level
+        );
+        let pickaxeBonusText = "";
+        if (nextPickaxeBonusLevel) {
+          const bonusAmount = bonusQuantities[nextPickaxeBonusLevel];
+          pickaxeBonusText = `<p>Próximo Bônus: <span class="upgrade-benefit">+${formatNumber(
+            bonusAmount
+          )}/clique</span> no Nível ${nextPickaxeBonusLevel}</p>`;
+        }
+
+        document.getElementById("upgrade-info-Pickaxe").innerHTML = `
+                <h3>Picareta Melhorada (Nível ${pickaxe.level})</h3>
+                <p>Benefício: <span class="upgrade-benefit">+${formatNumber(
+                  nextPickaxeProd
+                )} Terra/clique</span></p>
+                ${pickaxeBonusText}
+                <p>Custo: ${formatNumber(pickaxeCost)} moedas</p>`;
+        document.getElementById("buy-button-Pickaxe").disabled =
+          state.gold < pickaxeCost;
+
+        // Ore Upgrades
+        for (const oreKey in oreData) {
+          if (oreKey === "dirt") continue;
+          const ore = oreData[oreKey];
+          const container = document.getElementById(`upgrade-item-${oreKey}`);
+          if (!container) continue;
+
+          const isVisible = state.miningLevel >= ore.unlockLevel;
+          container.style.display = isVisible ? "flex" : "none";
+
+          if (isVisible) {
+            const infoEl = document.getElementById(`upgrade-info-${oreKey}`);
+            const buttonEl = document.getElementById(`buy-button-${oreKey}`);
+
+            if (!ore.unlocked) {
+              infoEl.innerHTML = `<h3>Desbloquear ${
+                ore.displayName
+              }</h3><p>Custo: ${formatNumber(ore.unlockCost)} moedas</p>`;
+              buttonEl.textContent = "Desbloquear";
+              buttonEl.disabled = state.gold < ore.unlockCost;
+            } else {
+              const cost = calculateCost(
+                ore.upgradeBaseCost,
+                ore.costMultiplier,
+                ore.level,
+                bonusLevels.includes(ore.level + 1)
+              );
+              const nextBonusLevel = bonusLevels.find((l) => l > ore.level);
+              infoEl.innerHTML = `
+                            <h3>Melhorar ${ore.displayName} (Nível ${
+                ore.level
+              })</h3>
+                            <p>Benefício: 
+                                <span class="upgrade-benefit">+${(
+                                  ore.clickChancePerLevel * 100
+                                ).toFixed(2)}%</span> chance/clique, 
+                                <span class="upgrade-benefit">+${(
+                                  ore.autoChancePerLevel * 100
+                                ).toFixed(2)}%</span> chance/seg
+                            </p>
+                            ${
+                              nextBonusLevel
+                                ? `<p>Próximo Bônus de Qtd: Nível ${nextBonusLevel}</p>`
+                                : ""
+                            }
+                            <p>Custo: ${formatNumber(cost)} moedas</p>`;
+              buttonEl.textContent = "Melhorar";
+              buttonEl.disabled = state.gold < cost;
+            }
+          }
+        }
+      }
+
+      function buildFurnaceUI() {
+        const recipeContainer = document.getElementById("furnaceRecipes");
+        const upgradeContainer = document.getElementById("furnaceUpgrades");
+        recipeContainer.innerHTML = "";
+        upgradeContainer.innerHTML = "";
+
+        for (const key in ingotData) {
+          const recipe = ingotData[key];
+          const item = document.createElement("div");
+          item.id = `recipe-item-${key}`;
+          item.className = "recipe-item";
+          item.innerHTML = `
+                    <div class="recipe-info">
+                        <h3>${recipe.displayName}</h3>
+                        <p>Requer: ${Object.entries(recipe.inputs)
+                          .map(
+                            ([k, v]) =>
+                              `${v} ${
+                                oreData[k]?.displayName ||
+                                ingotData[k]?.displayName
+                              }`
+                          )
+                          .join(", ")}</p>
+                        <div class="craft-progress">
+                            <div class="craft-progress-bar" id="progress-${key}"></div>
+                        </div>
+                        <p class="craft-time-text" id="time-left-${key}"></p>
+                    </div>
+                    <button class="craft-button" id="craft-button-${key}">Fundir</button>
+                    <div class="auto-toggle-container" id="auto-container-${key}" style="display: none;">
+                        <span>Auto</span>
+                        <button class="auto-toggle-button" id="toggle-button-${key}" data-key="${key}">Off</button>
+                    </div>
+                `;
+          recipeContainer.appendChild(item);
+
+          document
+            .getElementById(`craft-button-${key}`)
+            .addEventListener("click", () => {
+              startCrafting(key);
+            });
+
+          document
+            .getElementById(`toggle-button-${key}`)
+            .addEventListener("click", (e) => {
+              const toggleKey = e.target.dataset.key;
+              if (state.furnace.automatedRecipes.has(toggleKey)) {
+                state.furnace.automatedRecipes.delete(toggleKey);
+              } else {
+                if (
+                  state.furnace.automatedRecipes.size <
+                  state.furnace.slots.level
+                ) {
+                  state.furnace.automatedRecipes.add(toggleKey);
+                }
+              }
+              updateFurnaceRecipes();
+            });
+        }
+
+        const f = state.furnace;
+        createUpgradeElement(upgradeContainer, "AutomateFurnace", () => {
+          if (state.gold >= f.automate.baseCost) {
+            state.gold -= f.automate.baseCost;
+            f.automate.unlocked = true;
+            updateFurnaceUpgrades();
+            updateFurnaceRecipes();
+          }
+        });
+        createUpgradeElement(upgradeContainer, "FurnaceSlots", () => {
+          const cost = calculateCost(
+            f.slots.baseCost,
+            f.slots.costMultiplier,
+            f.slots.level - 1,
+            false
+          );
+          if (state.gold >= cost) {
+            state.gold -= cost;
+            f.slots.level++;
+            updateFurnaceUpgrades();
+          }
+        });
+        createUpgradeElement(upgradeContainer, "IngotsPerCraft", () => {
+          const cost = calculateCost(
+            f.ingotsPerCraft.baseCost,
+            f.ingotsPerCraft.costMultiplier,
+            f.ingotsPerCraft.level,
+            false
+          );
+          if (state.gold >= cost) {
+            state.gold -= cost;
+            f.ingotsPerCraft.level++;
+            updateFurnaceUpgrades();
+          }
+        });
+        createUpgradeElement(upgradeContainer, "CraftTime", () => {
+          const cost = calculateCost(
+            f.timeReduction.baseCost,
+            f.timeReduction.costMultiplier,
+            f.timeReduction.level,
+            false
+          );
+          if (state.gold >= cost) {
+            state.gold -= cost;
+            f.timeReduction.level++;
+            f.timeReduction.reduction += 0.05;
+            updateFurnaceUpgrades();
+          }
+        });
+      }
+
+      function updateFurnaceRecipes() {
+        for (const key in ingotData) {
+          const item = document.getElementById(`recipe-item-${key}`);
+          if (!item) continue;
+
+          let canDisplay = true;
+          for (const resource in ingotData[key].inputs) {
+            if (!oreData[resource]?.unlocked) {
+              canDisplay = false;
+              break;
+            }
+          }
+          item.style.display = canDisplay ? "flex" : "none";
+          if (!canDisplay) continue;
+
+          const activeCraft = state.furnace.activeCrafts.find(
+            (c) => c.key === key
+          );
+          let canCraft = true;
+          for (const resource in ingotData[key].inputs) {
+            if (state.resources[resource] < ingotData[key].inputs[resource]) {
+              canCraft = false;
+              break;
+            }
+          }
+
+          document.getElementById(`craft-button-${key}`).disabled =
+            !canCraft || !!activeCraft;
+
+          const toggleContainer = document.getElementById(
+            `auto-container-${key}`
+          );
+          toggleContainer.style.display = state.furnace.automate.unlocked
+            ? "flex"
+            : "none";
+          const toggleButton = document.getElementById(`toggle-button-${key}`);
+          const isActive = state.furnace.automatedRecipes.has(key);
+          toggleButton.classList.toggle("active", isActive);
+          toggleButton.textContent = isActive ? "On" : "Off";
+        }
+      }
+
+      function updateFurnaceProgress() {
+        document
+          .querySelectorAll(".craft-time-text")
+          .forEach((el) => (el.textContent = ""));
+        document
+          .querySelectorAll(".craft-progress-bar")
+          .forEach((el) => (el.style.width = "0%"));
+        state.furnace.activeCrafts.forEach((craft) => {
+          const progressBar = document.getElementById(`progress-${craft.key}`);
+          const timeLeftEl = document.getElementById(`time-left-${craft.key}`);
+          if (progressBar && timeLeftEl) {
+            const timeLeft = (craft.totalTime - craft.progress) / 1000;
+            progressBar.style.width = `${
+              (craft.progress / craft.totalTime) * 100
+            }%`;
+            timeLeftEl.textContent = `${timeLeft.toFixed(1)}s`;
+          }
+        });
+      }
+
+      function updateFurnaceUpgrades() {
+        const f = state.furnace;
+
+        const autoContainer = document.getElementById(
+          "upgrade-item-AutomateFurnace"
+        );
+        autoContainer.style.display = f.automate.unlocked ? "none" : "flex";
+        document.getElementById(
+          "upgrade-info-AutomateFurnace"
+        ).innerHTML = `<h3>Automatizar Fornalha</h3><p>Custo: ${formatNumber(
+          f.automate.baseCost
+        )} moedas</p>`;
+        document.getElementById("buy-button-AutomateFurnace").disabled =
+          state.gold < f.automate.baseCost;
+
+        const slotCost = calculateCost(
+          f.slots.baseCost,
+          f.slots.costMultiplier,
+          f.slots.level - 1,
+          false
+        );
+        document.getElementById(
+          "upgrade-info-FurnaceSlots"
+        ).innerHTML = `<h3>Espaço de Fornalha (Nível ${
+          f.slots.level
+        })</h3><p>Benefício: <span class="upgrade-benefit">+1 Espaço</span></p><p>Custo: ${formatNumber(
+          slotCost
+        )}</p>`;
+        document.getElementById("buy-button-FurnaceSlots").disabled =
+          state.gold < slotCost || f.slots.level >= 5;
+
+        const ingotsCost = calculateCost(
+          f.ingotsPerCraft.baseCost,
+          f.ingotsPerCraft.costMultiplier,
+          f.ingotsPerCraft.level,
+          false
+        );
+        document.getElementById(
+          "upgrade-info-IngotsPerCraft"
+        ).innerHTML = `<h3>Lingotes por Vez (Nível ${
+          f.ingotsPerCraft.level
+        })</h3><p>Benefício: <span class="upgrade-benefit">+1 Lingote</span></p><p>Custo: ${formatNumber(
+          ingotsCost
+        )}</p>`;
+        document.getElementById("buy-button-IngotsPerCraft").disabled =
+          state.gold < ingotsCost || f.ingotsPerCraft.level >= 10;
+
+        const timeCost = calculateCost(
+          f.timeReduction.baseCost,
+          f.timeReduction.costMultiplier,
+          f.timeReduction.level,
+          false
+        );
+        document.getElementById(
+          "upgrade-info-CraftTime"
+        ).innerHTML = `<h3>Redução de Tempo (Nível ${
+          f.timeReduction.level
+        })</h3><p>Benefício: <span class="upgrade-benefit">+5%</span></p><p>Custo: ${formatNumber(
+          timeCost
+        )}</p>`;
+        document.getElementById("buy-button-CraftTime").disabled =
+          state.gold < timeCost || f.timeReduction.level >= 10;
+      }
+
+      // --- INICIALIZAÇÃO DO JOGO ---
+      function init() {
+        document.getElementById("mineButton").addEventListener("click", () => {
+          mineOres();
+          updateDynamicUI();
+        });
+
+        document
+          .getElementById("miningTabButton")
+          .addEventListener("click", () => openTab("miningTab"));
+        document
+          .getElementById("furnaceTabButton")
+          .addEventListener("click", () => openTab("furnaceTab"));
+
+        setInterval(() => {
+          autoMineOres();
+          processFurnace();
+          updateDynamicUI();
+        }, 1000);
+
+        recalculateProductionStats();
+        buildFullUI();
+        updateResourcesDisplay();
+        updateButtonStates();
+        updateDynamicUI();
+        openTab("miningTab");
+      }
+
+      function openTab(tabId) {
+        document
+          .querySelectorAll(".tab-content")
+          .forEach((tab) => tab.classList.remove("active"));
+        document
+          .querySelectorAll(".tab-button")
+          .forEach((btn) => btn.classList.remove("active"));
+        document.getElementById(tabId).classList.add("active");
+        document.getElementById(`${tabId}Button`).classList.add("active");
+      }
+
+      window.onload = init;
+    </script>
+  </body>
+</html>
