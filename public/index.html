@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Minerador Incremental - Fase 1</title>
+    <title>Minerador Incremental - Fase 2</title>
     <style>
         body {
             font-family: 'Inter', sans-serif;
@@ -41,8 +41,8 @@
         }
         
         h2 {
-           margin-bottom: 15px;
-           font-size: 1.5em;
+            margin-bottom: 15px;
+            font-size: 1.5em;
         }
 
         .stats-container {
@@ -205,7 +205,7 @@
             border-color: #3182ce;
         }
 
-        .resources-section, .upgrades-section, .furnace-section {
+        .resources-section, .upgrades-section, .furnace-section, .crafting-section {
             margin-top: 20px;
             border-top: 1px solid #4a5568;
             padding-top: 20px;
@@ -214,10 +214,13 @@
         .production-stats {
             display: flex;
             justify-content: space-evenly;
+            align-items: center;
+            flex-wrap: wrap;
             background-color: #1a202c;
             padding: 10px;
             border-radius: 8px;
             margin-bottom: 20px;
+            gap: 15px;
         }
 
         .resources-grid {
@@ -272,7 +275,6 @@
             font-size: 0.9em;
             cursor: pointer;
             transition: background-color 0.2s ease;
-            margin-top: 10px;
         }
 
         .sell-button:hover:not(:disabled) {
@@ -378,6 +380,14 @@
             font-size: 0.9em;
             color: #cbd5e0;
         }
+        
+        .resource-controls {
+            display: flex;
+            gap: 5px;
+            margin-top: 10px;
+            justify-content: center; /* Center buttons */
+            align-items: flex-end;
+        }
 
         .auto-toggle-button {
             background-color: #6b7280;
@@ -432,6 +442,7 @@
         <div class="tab-buttons">
             <button id="miningTabButton" class="tab-button active">Mineração</button>
             <button id="furnaceTabButton" class="tab-button">Fornalha</button>
+            <button id="craftingTabButton" class="tab-button" style="display: none;">Artesanato</button>
         </div>
 
         <!-- Conteúdo da Aba de Mineração -->
@@ -440,7 +451,13 @@
                 <!-- Estatísticas de produção geradas via JS -->
             </div>
             
-            <button id="mineButton" class="click-button">Minar Terra</button>
+            <div class="mining-controls" style="display: flex; justify-content: center; align-items: center; gap: 10px; flex-wrap: wrap;">
+                <button id="mineButton" class="click-button">Minar Terra</button>
+                <div class="auto-toggle-container" id="auto-clicker-container" style="display: none; margin: 20px 0;">
+                    <span>Auto-Click</span>
+                    <button class="auto-toggle-button" id="toggle-auto-clicker">Off</button>
+                </div>
+            </div>
 
             <div class="resources-section">
                 <div class="section-header">
@@ -471,7 +488,7 @@
                     <div id="ingotSellControls" class="multiplier-controls"></div>
                 </div>
                 <div id="furnaceResourcesGrid" class="resources-grid">
-                     <!-- Lingotes gerados via JS -->
+                        <!-- Lingotes gerados via JS -->
                 </div>
             </div>
 
@@ -489,92 +506,159 @@
                 </div>
             </div>
         </div>
+        
+        <!-- Conteúdo da Aba de Artesanato -->
+        <div id="craftingTab" class="tab-content">
+            <div class="stats-container">
+                 <div class="xp-container">
+                    <div id="craftingLevelDisplay" class="level-display">Nível de Artesanato 1</div>
+                    <div class="xp-bar">
+                        <div id="craftingXpBarFill" class="xp-bar-fill"></div>
+                        <div id="craftingXpBarText" class="xp-bar-text">0 / 300 XP</div>
+                    </div>
+                      <div id="nextCraftingUnlockGoal" class="next-unlock-goal"></div>
+                </div>
+            </div>
+             <div class="resources-section">
+                 <div class="section-header">
+                    <h2>Acessórios Criados</h2>
+                       <div id="accessorySellControls" class="multiplier-controls"></div>
+                </div>
+                <div id="craftedItemsGrid" class="resources-grid">
+                        <!-- Acessórios gerados via JS -->
+                </div>
+            </div>
+            <div class="crafting-section">
+                <h2>Receitas de Artesanato</h2>
+                <div id="craftingRecipes">
+                    <!-- Receitas de artesanato geradas via JS -->
+                </div>
+            </div>
+             <div class="upgrades-section">
+                <h2>Melhorias de Artesanato</h2>
+                <div id="craftingUpgrades">
+                    <!-- Melhorias de artesanato geradas via JS -->
+                </div>
+            </div>
+        </div>
     </div>
 
     <script>
-        // --- ESTADO DO JOGO ---
-        const state = {
-            gold: 0,
-            miningLevel: 1,
-            currentXp: 0,
-            dirtPerSecond: 0,
-            dirtPerClick: 1,
-            sellMultiplier: 1, // 1 = 100%
-            upgradeMultiplier: 1, // 1, 5, 10, 25, 'MAX'
-            resources: {
-                dirt: 0,
-                stone: 0,
-                copper: 0,
-                tin: 0,
-                iron: 0,
-                coal: 0,
-                bronzeIngot: 0,
-                ironIngot: 0,
-                steelIngot: 0,
-            },
-            upgrades: {
-                miners: { level: 0, baseCost: 100, costMultiplier: 1.15 },
-                pickaxe: { level: 0, baseCost: 500, costMultiplier: 1.2 },
-            },
-            furnace: {
-                automate: { level: 0, baseCost: 1000, unlocked: false },
-                slots: { level: 1, baseCost: 2000, costMultiplier: 1.8 },
-                ingotsPerCraft: { level: 0, baseCost: 1500, costMultiplier: 1.6 },
-                timeReduction: { level: 0, baseCost: 2500, costMultiplier: 1.7, reduction: 0 },
-                activeCrafts: [],
-                automatedRecipes: new Set(),
-            }
-        };
+        // --- ESTADO INICIAL DO JOGO ---
+        function getInitialState() {
+            return {
+                gold: 0,
+                miningLevel: 1,
+                currentXp: 0,
+                dirtPerSecond: 0,
+                dirtPerClick: 1,
+                sellMultiplier: 1, 
+                upgradeMultiplier: 1,
+                autoClickerActive: false,
+                resources: {
+                    dirt: 0, stone: 0, copper: 0, tin: 0, iron: 0, coal: 0,
+                    silver: 0, goldOre: 0, mithril: 0, adamantite: 0, runite: 0,
+                    bronzeIngot: 0, ironIngot: 0, steelIngot: 0,
+                    silverIngot: 0, goldIngot: 0, mithrilIngot: 0, adamantiteIngot: 0, runiteIngot: 0,
+                    silverRing: 0, silverNecklace: 0, silverBracelet: 0, silverEarrings: 0,
+                    goldRing: 0, goldNecklace: 0, goldBracelet: 0, goldEarrings: 0,
+                },
+                upgrades: {
+                    miners: { level: 0, baseCost: 175, costMultiplier: 1.15 },
+                    pickaxe: { level: 0, baseCost: 400, costMultiplier: 1.2 },
+                    coalProspecting: { level: 0, cost: 50000, unlocked: false, bonus: 0.05 },
+                    autoClicker: { level: 0 },
+                    autoSell: { unlocked: false, cost: 50000 },
+                    autoSellActive: new Set(),
+                },
+                furnace: {
+                    automate: { level: 0, baseCost: 1000, unlocked: false },
+                    slots: { level: 1, baseCost: 2000, costMultiplier: 1.8 },
+                    ingotsPerCraft: { level: 0, baseCost: 1500, costMultiplier: 1.6 },
+                    timeReduction: { level: 0, baseCost: 2500, costMultiplier: 1.7, reduction: 0 },
+                    activeCrafts: [],
+                    automatedRecipes: new Set(),
+                    autoSell: { unlocked: false, cost: 75000 },
+                    autoSellActive: new Set(),
+                },
+                crafting: {
+                    level: 1,
+                    currentXp: 0,
+                    automate: { level: 0, baseCost: 100000, unlocked: false },
+                    slots: { level: 1, baseCost: 200000, costMultiplier: 1.8 },
+                    itemsPerCraft: { level: 0, baseCost: 150000, costMultiplier: 1.6 },
+                    timeReduction: { level: 0, baseCost: 250000, costMultiplier: 1.7, reduction: 0 },
+                    activeCrafts: [],
+                    automatedRecipes: new Set(),
+                    autoSell: { unlocked: false, cost: 100000 },
+                    autoSellActive: new Set(),
+                }
+            };
+        }
+        let state = getInitialState();
+        let autoClickerIntervalId = null;
 
         // --- DADOS DE BALANCEAMENTO ---
         const xpPerLevelFormula = (level) => Math.floor(200 * Math.pow(1.4, level - 1));
+        const craftingXpPerLevelFormula = (level) => Math.floor(300 * Math.pow(1.45, level - 1));
 
         const oreData = {
-            dirt: { displayName: 'Terra', value: 1, xpValue: 1, unlocked: true, level: 1 },
-            stone: { 
-                displayName: 'Pedra', value: 5, xpValue: 10, unlocked: false, level: 0, unlockLevel: 5, 
-                unlockCost: 200, upgradeBaseCost: 50, costMultiplier: 1.18,
-                baseClickChance: 0.08, clickChancePerLevel: 0.004,
-                baseAutoChance: 0.008, autoChancePerLevel: 0.0004
-            },
-            copper: { 
-                displayName: 'Cobre', value: 10, xpValue: 35, unlocked: false, level: 0, unlockLevel: 8,
-                unlockCost: 500, upgradeBaseCost: 100, costMultiplier: 1.22,
-                baseClickChance: 0.05, clickChancePerLevel: 0.003,
-                baseAutoChance: 0.005, autoChancePerLevel: 0.0003
-            },
-            tin: { 
-                displayName: 'Estanho', value: 15, xpValue: 35, unlocked: false, level: 0, unlockLevel: 8,
-                unlockCost: 750, upgradeBaseCost: 150, costMultiplier: 1.28,
-                baseClickChance: 0.04, clickChancePerLevel: 0.0025,
-                baseAutoChance: 0.004, autoChancePerLevel: 0.00025
-            },
-            iron: { 
-                displayName: 'Ferro', value: 20, xpValue: 90, unlocked: false, level: 0, unlockLevel: 12,
-                unlockCost: 1000, upgradeBaseCost: 200, costMultiplier: 1.35,
-                baseClickChance: 0.025, clickChancePerLevel: 0.002,
-                baseAutoChance: 0.0025, autoChancePerLevel: 0.0002
-            },
-            coal: { 
-                displayName: 'Carvão', value: 25, xpValue: 220, unlocked: false, level: 0, unlockLevel: 15,
-                unlockCost: 1200, upgradeBaseCost: 250, costMultiplier: 1.4,
-                baseClickChance: 0.02, clickChancePerLevel: 0.0015,
-                baseAutoChance: 0.002, autoChancePerLevel: 0.00015
-            }
+            dirt: { displayName: 'Terra', value: 1, xpValue: 0.5, unlocked: true, level: 1 },
+            stone: { displayName: 'Pedra', value: 5, xpValue: 1.5, unlocked: false, level: 0, unlockLevel: 5, unlockCost: 350, upgradeBaseCost: 100, costMultiplier: 1.18, baseClickChance: 0.08, clickChancePerLevel: 0.004, baseAutoChance: 0.008, autoChancePerLevel: 0.0004 },
+            copper: { displayName: 'Cobre', value: 10, xpValue: 12.5, unlocked: false, level: 0, unlockLevel: 8, unlockCost: 500, upgradeBaseCost: 150, costMultiplier: 1.20, baseClickChance: 0.05, clickChancePerLevel: 0.003, baseAutoChance: 0.005, autoChancePerLevel: 0.0003 },
+            tin: { displayName: 'Estanho', value: 15, xpValue: 12.5, unlocked: false, level: 0, unlockLevel: 8, unlockCost: 750, upgradeBaseCost: 200, costMultiplier: 1.25, baseClickChance: 0.04, clickChancePerLevel: 0.0025, baseAutoChance: 0.004, autoChancePerLevel: 0.00025 },
+            iron: { displayName: 'Ferro', value: 20, xpValue: 30, unlocked: false, level: 0, unlockLevel: 12, unlockCost: 1000, upgradeBaseCost: 200, costMultiplier: 1.30, baseClickChance: 0.025, clickChancePerLevel: 0.002, baseAutoChance: 0.0025, autoChancePerLevel: 0.0002 },
+            coal: { displayName: 'Carvão', value: 25, xpValue: 440, unlocked: false, level: 0, unlockLevel: 15, unlockCost: 1200, upgradeBaseCost: 250, costMultiplier: 1.4, baseClickChance: 0.02, clickChancePerLevel: 0.0015, baseAutoChance: 0.002, autoChancePerLevel: 0.00015 },
+            silver: { displayName: 'Prata', value: 50, xpValue: 2000, unlocked: false, level: 0, unlockLevel: 20, unlockCost: 25000, upgradeBaseCost: 500, costMultiplier: 1.5, baseClickChance: 0.015, clickChancePerLevel: 0.0012, baseAutoChance: 0.0015, autoChancePerLevel: 0.00012 },
+            goldOre: { displayName: 'Ouro', value: 150, xpValue: 4000, unlocked: false, level: 0, unlockLevel: 20, unlockCost: 1000000, upgradeBaseCost: 15000, costMultiplier: 1.6, baseClickChance: 0.012, clickChancePerLevel: 0.001, baseAutoChance: 0.0012, autoChancePerLevel: 0.0001 },
+            mithril: { displayName: 'Mithril', value: 120, xpValue: 3500, unlocked: false, level: 0, unlockLevel: 25, unlockCost: 150000, upgradeBaseCost: 2000, costMultiplier: 1.6, baseClickChance: 0.01, clickChancePerLevel: 0.001, baseAutoChance: 0.001, autoChancePerLevel: 0.0001 },
+            adamantite: { displayName: 'Adamantio', value: 250, xpValue: 5000, unlocked: false, level: 0, unlockLevel: 30, unlockCost: 500000, upgradeBaseCost: 8000, costMultiplier: 1.7, baseClickChance: 0.008, clickChancePerLevel: 0.0008, baseAutoChance: 0.0008, autoChancePerLevel: 0.00008 },
+            runite: { displayName: 'Runita', value: 500, xpValue: 9000, unlocked: false, level: 0, unlockLevel: 35, unlockCost: 2000000, upgradeBaseCost: 25000, costMultiplier: 1.8, baseClickChance: 0.005, clickChancePerLevel: 0.0005, baseAutoChance: 0.0005, autoChancePerLevel: 0.00005 },
         };
         
         const ingotData = {
-            bronzeIngot: { displayName: 'Lingote de Bronze', value: 50, inputs: { copper: 1, tin: 1 }, baseCraftTime: 5000 },
-            ironIngot: { displayName: 'Lingote de Ferro', value: 60, inputs: { iron: 2 }, baseCraftTime: 8000 },
-            steelIngot: { displayName: 'Lingote de Aço', value: 100, inputs: { iron: 1, coal: 1 }, baseCraftTime: 12000 },
+            bronzeIngot: { displayName: 'Lingote de Bronze', value: 100, inputs: { copper: 1, tin: 1 }, baseCraftTime: 2500, unlockLevel: 1 },
+            ironIngot: { displayName: 'Lingote de Ferro', value: 200, inputs: { iron: 2 }, baseCraftTime: 4000, unlockLevel: 12 },
+            steelIngot: { displayName: 'Lingote de Aço', value: 250, inputs: { iron: 1, coal: 1 }, baseCraftTime: 6000, unlockLevel: 15 },
+            silverIngot: { displayName: 'Lingote de Prata', value: 1000, inputs: { silver: 5 }, baseCraftTime: 5000, unlockLevel: 20 },
+            goldIngot: { displayName: 'Lingote de Ouro', value: 3000, inputs: { goldOre: 5 }, baseCraftTime: 9000, unlockLevel: 20 },
+            mithrilIngot: { displayName: 'Lingote de Mithril', value: 1500, inputs: { mithril: 2, coal: 4 }, baseCraftTime: 7500, unlockLevel: 25 },
+            adamantiteIngot: { displayName: 'Lingote de Adamantio', value: 5000, inputs: { adamantite: 4, coal: 8 }, baseCraftTime: 10000, unlockLevel: 30 },
+            runiteIngot: { displayName: 'Lingote de Runita', value: 14000, inputs: { runite: 6, coal: 12 }, baseCraftTime: 12500, unlockLevel: 35 },
+        };
+        
+        const accessoryData = {
+            silverRing: { displayName: "Anel de Prata", value: 250, xpValue: 330, unlockLevel: 1, inputs: { silverIngot: 1 }, quantity: 10, baseCraftTime: 5000 },
+            silverBracelet: { displayName: "Pulseira de Prata", value: 320, xpValue: 550, unlockLevel: 5, inputs: { silverIngot: 1 }, quantity: 5, baseCraftTime: 6000 },
+            silverNecklace: { displayName: "Colar de Prata", value: 2000, xpValue: 500, unlockLevel: 10, inputs: { silverIngot: 1 }, quantity: 2, baseCraftTime: 7500 },
+            silverEarrings: { displayName: "Brincos de Prata", value: 1500, xpValue: 2000, unlockLevel: 15, inputs: { silverIngot: 1 }, quantity: 5, baseCraftTime: 9000 },
+            goldRing: { displayName: "Anel de Ouro", value: 500, xpValue: 750, unlockLevel: 20, inputs: { goldIngot: 1 }, quantity: 10, baseCraftTime: 10000 },
+            goldBracelet: { displayName: "Pulseira de Ouro", value: 880, xpValue: 900, unlockLevel: 25, inputs: { goldIngot: 1 }, quantity: 5, baseCraftTime: 11000 },
+            goldNecklace: { displayName: "Colar de Ouro", value: 3000, xpValue: 800, unlockLevel: 30, inputs: { goldIngot: 1 }, quantity: 2, baseCraftTime: 12500 },
+            goldEarrings: { displayName: "Brincos de Ouro", value: 2000, xpValue: 4000, unlockLevel: 35, inputs: { goldIngot: 1 }, quantity: 5, baseCraftTime: 14000 },
         };
 
         const bonusLevels = [10, 25, 50, 75, 100];
-        const bonusQuantities = { 10: 5, 25: 15, 50: 50, 75: 100, 100: 250 };
+        const bonusQuantities = { 10: 2, 25: 5, 50: 10, 75: 15, 100: 25 };
+        
+        const autoClickerData = [
+            { clicksPerSecond: 0, cost: 0 }, // Level 0 placeholder
+            { clicksPerSecond: 0.5, cost: 1000 },    // Level 1: 1 click every 2s
+            { clicksPerSecond: 1 / 1.5, cost: 2500 },// Level 2: 1 click every 1.5s
+            { clicksPerSecond: 1, cost: 7500 },      // Level 3
+            { clicksPerSecond: 1 / 0.75, cost: 25000}, // Level 4
+            { clicksPerSecond: 2, cost: 35000 },      // Level 5
+            { clicksPerSecond: 2.25, cost: 75000 },   // Level 6
+            { clicksPerSecond: 2.5, cost: 250000 },   // Level 7
+            { clicksPerSecond: 3, cost: 1000000 },    // Level 8
+            { clicksPerSecond: 3.5, cost: 1250000 },  // Level 9
+            { clicksPerSecond: 4, cost: 5000000 }     // Level 10
+        ];
 
         // --- LÓGICA DO JOGO ---
 
         function formatNumber(num, decimals = 2) {
+            if (num === undefined || num === null) return '0';
             if (num < 1000) return num.toFixed(0);
             if (num < 1000000) return (num / 1000).toFixed(decimals) + 'k';
             if (num < 1000000000) return (num / 1000000).toFixed(decimals) + 'M';
@@ -589,11 +673,19 @@
             return cost;
         }
 
-        function addXp(amount) {
-            state.currentXp += amount;
-            const requiredXp = xpPerLevelFormula(state.miningLevel);
-            if (state.currentXp >= requiredXp) {
-                levelUp(requiredXp);
+        function addXp(amount, type = 'mining') {
+            if (type === 'mining') {
+                state.currentXp += amount;
+                let requiredXp = xpPerLevelFormula(state.miningLevel);
+                if (state.currentXp >= requiredXp) {
+                    levelUp(requiredXp);
+                }
+            } else if (type === 'crafting') {
+                state.crafting.currentXp += amount;
+                let requiredXp = craftingXpPerLevelFormula(state.crafting.level);
+                 if (state.crafting.currentXp >= requiredXp) {
+                    craftingLevelUp(requiredXp);
+                }
             }
         }
 
@@ -605,17 +697,31 @@
             }
             updateMiningUpgrades();
             buildFurnaceUI();
+            updateResourcesDisplay();
+        }
+        
+        function craftingLevelUp(requiredXp) {
+             while (state.crafting.currentXp >= requiredXp) {
+                state.crafting.currentXp -= requiredXp;
+                state.crafting.level++;
+                requiredXp = craftingXpPerLevelFormula(state.crafting.level);
+            }
+            buildCraftingUI();
+            updateResourcesDisplay();
         }
 
         function mineOres() {
             state.resources.dirt += state.dirtPerClick;
-            addXp(oreData.dirt.xpValue * state.dirtPerClick);
+            addXp(oreData.dirt.xpValue * state.dirtPerClick, 'mining');
 
             for (const oreKey in oreData) {
                 if (oreKey === 'dirt' || !oreData[oreKey].unlocked) continue;
                 
                 const ore = oreData[oreKey];
-                const chance = ore.baseClickChance + (ore.level * ore.clickChancePerLevel);
+                let chance = ore.baseClickChance + (ore.level * ore.clickChancePerLevel);
+                if (oreKey === 'coal' && state.upgrades.coalProspecting.unlocked) {
+                    chance += state.upgrades.coalProspecting.bonus;
+                }
                 
                 if (Math.random() < chance) {
                     let amount = 1;
@@ -625,57 +731,61 @@
                         }
                     });
                     state.resources[oreKey] += amount;
-                    addXp(ore.xpValue * amount);
+                    addXp(ore.xpValue * amount, 'mining');
                 }
             }
         }
 
         function autoMineOres() {
+            if (state.dirtPerSecond <= 0) return;
             state.resources.dirt += state.dirtPerSecond;
-            addXp(oreData.dirt.xpValue * state.dirtPerSecond);
+            addXp(oreData.dirt.xpValue * state.dirtPerSecond, 'mining');
             
             for (const oreKey in oreData) {
                 if (oreKey === 'dirt' || !oreData[oreKey].unlocked) continue;
 
                 const ore = oreData[oreKey];
-                const chance = ore.baseAutoChance + (ore.level * ore.autoChancePerLevel);
+                let chance = ore.baseAutoChance + (ore.level * ore.autoChancePerLevel);
+                 if (oreKey === 'coal' && state.upgrades.coalProspecting.unlocked) {
+                    chance += state.upgrades.coalProspecting.bonus;
+                }
 
                 if (Math.random() < chance * state.dirtPerSecond) {
-                     let amount = 1;
+                       let amount = 1;
                     bonusLevels.forEach(bonusLevel => {
                         if (ore.level >= bonusLevel && bonusQuantities[bonusLevel]) {
                             amount += bonusQuantities[bonusLevel];
                         }
                     });
                     state.resources[oreKey] += amount;
-                    addXp(ore.xpValue * amount);
+                    addXp(ore.xpValue * amount, 'mining');
                 }
             }
         }
         
         function calculateProduction(type) {
-             const upgrade = state.upgrades[type];
-             if(type === 'miners'){
-                 let production = 0;
-                 for(let i = 1; i <= upgrade.level; i++){
-                     production += 1 * Math.pow(1.05, i - 1);
-                     if(bonusLevels.includes(i)){
-                         production += bonusQuantities[i];
-                     }
-                 }
-                 return production;
-             }
-             if(type === 'pickaxe'){
-                 let production = 1 + upgrade.level;
-                 bonusLevels.forEach(bonusLevel => {
-                    if (upgrade.level >= bonusLevel) {
-                        production += bonusQuantities[bonusLevel];
-                    }
-                 });
-                 return production;
-             }
-             return 0;
-        }
+              const upgrade = state.upgrades[type];
+              if(type === 'miners'){
+                   let production = 0;
+                   for(let i = 1; i <= upgrade.level; i++){
+                         production += 1 * Math.pow(1.05, i - 1);
+                         if(bonusLevels.includes(i)){
+                               production += bonusQuantities[i];
+                         }
+                   }
+                   return production;
+              }
+              if(type === 'pickaxe'){
+                   let production = 1 + upgrade.level;
+                   bonusLevels.forEach(bonusLevel => {
+                       if (upgrade.level >= bonusLevel) {
+                           production += bonusQuantities[bonusLevel];
+                       }
+                   });
+                   return production;
+              }
+              return 0;
+         }
         
         function recalculateProductionStats() {
             state.dirtPerSecond = calculateProduction('miners');
@@ -683,15 +793,18 @@
             updateMiningProductionStats();
         }
 
-        function startCrafting(ingotKey) {
-            const recipe = ingotData[ingotKey];
-            const furnaceState = state.furnace;
+        function startCrafting(key, type = 'furnace') {
+            const recipeData = type === 'furnace' ? ingotData : accessoryData;
+            const stateBranch = type === 'furnace' ? state.furnace : state.crafting;
+            const recipe = recipeData[key];
+
+            const itemsToCraft = 1 + (type === 'furnace' ? state.furnace.ingotsPerCraft.level : state.crafting.itemsPerCraft.level);
             
-            if (furnaceState.activeCrafts.some(c => c.key === ingotKey) || furnaceState.activeCrafts.length >= furnaceState.slots.level) return;
+            if (stateBranch.activeCrafts.some(c => c.key === key) || stateBranch.activeCrafts.length >= stateBranch.slots.level) return;
 
             let canCraft = true;
             for (const resource in recipe.inputs) {
-                if(state.resources[resource] < recipe.inputs[resource]) {
+                if(state.resources[resource] < recipe.inputs[resource] * itemsToCraft) {
                     canCraft = false;
                     break;
                 }
@@ -699,32 +812,63 @@
 
             if (canCraft) {
                 for (const resource in recipe.inputs) {
-                    state.resources[resource] -= recipe.inputs[resource];
+                    state.resources[resource] -= recipe.inputs[resource] * itemsToCraft;
                 }
-                const craftTime = recipe.baseCraftTime * (1 - furnaceState.timeReduction.reduction);
-                furnaceState.activeCrafts.push({ key: ingotKey, progress: 0, totalTime: craftTime });
-                updateFurnaceRecipes();
+                const craftTime = (recipe.baseCraftTime || 0) * (1 - (stateBranch.timeReduction.reduction || 0));
+                if (isNaN(craftTime)) {
+                    console.error("Error: Calculated craftTime is NaN.", {key, type, recipe, stateBranch});
+                    return;
+                }
+                stateBranch.activeCrafts.push({ key: key, progress: 0, totalTime: craftTime, type: type });
+                if(type === 'furnace') updateFurnaceUI(); else updateCraftingUI();
             }
         }
         
-        function processFurnace() {
-            const furnaceState = state.furnace;
-            if(furnaceState.automate.unlocked){
-                furnaceState.automatedRecipes.forEach(ingotKey => {
-                    if(!furnaceState.activeCrafts.some(c => c.key === ingotKey)){
-                         startCrafting(ingotKey);
+        function processQueue(stateBranch, recipeData) {
+            if(stateBranch.automate.unlocked){
+                stateBranch.automatedRecipes.forEach(key => {
+                    if(!stateBranch.activeCrafts.some(c => c.key === key)){
+                          startCrafting(key, stateBranch === state.furnace ? 'furnace' : 'crafting');
                     }
                 });
             }
 
-            furnaceState.activeCrafts = furnaceState.activeCrafts.filter(craft => {
+            stateBranch.activeCrafts = stateBranch.activeCrafts.filter(craft => {
                 craft.progress += 1000; // Game tick is 1000ms
                 if (craft.progress >= craft.totalTime) {
-                    state.resources[craft.key] += (1 + furnaceState.ingotsPerCraft.level);
-                    updateFurnaceRecipes();
+                    const itemsCreated = 1 + (craft.type === 'furnace' ? stateBranch.ingotsPerCraft.level : state.crafting.itemsPerCraft.level);
+                    const recipe = recipeData[craft.key];
+                    const quantity = recipe.quantity || 1;
+                    state.resources[craft.key] += itemsCreated * quantity;
+
+                    if(craft.type === 'crafting') {
+                        addXp(recipe.xpValue * itemsCreated, 'crafting');
+                    }
+                    if(craft.type === 'furnace') updateFurnaceUI(); else updateCraftingUI();
                     return false; 
                 }
                 return true; 
+            });
+        }
+        
+        function autoSellResources() {
+            state.upgrades.autoSellActive.forEach(key => {
+                if (state.resources[key] > 0) {
+                    state.gold += state.resources[key] * (oreData[key]?.value || 0);
+                    state.resources[key] = 0;
+                }
+            });
+            state.furnace.autoSellActive.forEach(key => {
+                if (state.resources[key] > 0) {
+                    state.gold += state.resources[key] * (ingotData[key]?.value || 0);
+                    state.resources[key] = 0;
+                }
+            });
+            state.crafting.autoSellActive.forEach(key => {
+                if (state.resources[key] > 0) {
+                    state.gold += state.resources[key] * (accessoryData[key]?.value || 0);
+                    state.resources[key] = 0;
+                }
             });
         }
 
@@ -735,6 +879,7 @@
             updateXpDisplay();
             updateResourceCounts();
             updateFurnaceProgress();
+            updateCraftingProgress();
             updateButtonStates();
         }
         
@@ -742,12 +887,18 @@
             updateFurnaceRecipes();
             updateFurnaceUpgrades();
         }
+        
+        function updateCraftingUI() {
+            updateCraftingRecipes();
+            updateCraftingUpgrades();
+        }
 
         function updateGoldDisplay() {
             document.getElementById('goldCount').textContent = formatNumber(state.gold);
         }
 
         function updateXpDisplay() {
+            // Mining XP
             const requiredXp = xpPerLevelFormula(state.miningLevel);
             const percentage = Math.min((state.currentXp / requiredXp) * 100, 100);
             document.getElementById('levelDisplay').textContent = `Nível de Mineração ${state.miningLevel}`;
@@ -755,7 +906,8 @@
             document.getElementById('xpBarText').textContent = `${formatNumber(state.currentXp)} / ${formatNumber(requiredXp)} XP`;
             
             let nextGoalText = "Todos os minérios desbloqueados!";
-            for (const key in oreData) {
+            const sortedOres = Object.keys(oreData).filter(k => k !== 'dirt').sort((a, b) => oreData[a].unlockLevel - oreData[b].unlockLevel);
+            for (const key of sortedOres) {
                 const ore = oreData[key];
                 if (ore.unlockLevel > state.miningLevel) {
                     nextGoalText = `Próximo: ${ore.displayName} (Nível ${ore.unlockLevel})`;
@@ -763,12 +915,42 @@
                 }
             }
             document.getElementById('nextUnlockGoal').textContent = nextGoalText;
+
+            // Crafting XP
+            const craftingTab = document.getElementById('craftingTabButton');
+            if (state.miningLevel >= 20) {
+                craftingTab.style.display = 'inline-block';
+                const requiredCraftXp = craftingXpPerLevelFormula(state.crafting.level);
+                const craftPercentage = Math.min((state.crafting.currentXp / requiredCraftXp) * 100, 100);
+                document.getElementById('craftingLevelDisplay').textContent = `Nível de Artesanato ${state.crafting.level}`;
+                document.getElementById('craftingXpBarFill').style.width = `${craftPercentage}%`;
+                document.getElementById('craftingXpBarText').textContent = `${formatNumber(state.crafting.currentXp)} / ${formatNumber(requiredCraftXp)} XP`;
+                
+                let nextCraftGoalText = "Todos os acessórios desbloqueados!";
+                const sortedAccessories = Object.keys(accessoryData).sort((a,b) => accessoryData[a].unlockLevel - accessoryData[b].unlockLevel);
+                 for (const key of sortedAccessories) {
+                    const acc = accessoryData[key];
+                    if (acc.unlockLevel > state.crafting.level) {
+                        nextCraftGoalText = `Próximo: ${acc.displayName} (Nível ${acc.unlockLevel})`;
+                        break;
+                    }
+                }
+                document.getElementById('nextCraftingUnlockGoal').textContent = nextCraftGoalText;
+            }
         }
         
         function updateMiningProductionStats(){
+            const autoClickerLevel = state.upgrades.autoClicker.level;
+            let autoClickerStatHTML = '';
+            if (autoClickerLevel > 0) {
+                const clicksPerSecond = autoClickerData[autoClickerLevel].clicksPerSecond;
+                autoClickerStatHTML = `<span>Cliques/seg: <strong class="upgrade-benefit">${clicksPerSecond.toFixed(2)}</strong></span>`;
+            }
+
             document.getElementById('miningProductionStats').innerHTML = `
                 <span>Terra/seg: <strong class="upgrade-benefit">${formatNumber(state.dirtPerSecond, 2)}</strong></span>
                 <span>Terra/clique: <strong class="upgrade-benefit">${formatNumber(state.dirtPerClick)}</strong></span>
+                ${autoClickerStatHTML}
             `;
         }
         
@@ -783,8 +965,10 @@
         
         function updateButtonStates() {
             updateMiningUpgrades();
-            updateFurnaceRecipes();
-            updateFurnaceUpgrades();
+            updateFurnaceUI();
+            if (state.miningLevel >= 20) {
+                updateCraftingUI();
+            }
         }
         
         function buildFullUI() {
@@ -792,15 +976,17 @@
             buildResourcesUI();
             buildMiningUpgradesUI();
             buildFurnaceUI();
+            buildCraftingUI();
         }
         
         function buildMultiplierControls() {
-            const sellTargets = ['resourceSellControls', 'ingotSellControls'];
+            const sellTargets = ['resourceSellControls', 'ingotSellControls', 'accessorySellControls'];
             const sellValues = [0.1, 0.25, 0.5, 0.75, 1];
             const sellLabels = ['10%', '25%', '50%', '75%', '100%'];
             
             sellTargets.forEach(targetId => {
                 const container = document.getElementById(targetId);
+                if (!container) return;
                 container.innerHTML = '';
                 sellLabels.forEach((label, index) => {
                     const button = document.createElement('button');
@@ -811,8 +997,14 @@
                     }
                     button.onclick = () => {
                         state.sellMultiplier = sellValues[index];
-                        document.querySelectorAll(`#${targetId} .control-button`).forEach(btn => btn.classList.remove('active'));
-                        button.classList.add('active');
+                        sellTargets.forEach(id => {
+                            const parent = document.getElementById(id);
+                            if (parent) {
+                                Array.from(parent.children).forEach((btn, i) => {
+                                    btn.classList.toggle('active', i === index);
+                                });
+                            }
+                        });
                     };
                     container.appendChild(button);
                 });
@@ -841,57 +1033,48 @@
         function buildResourcesUI() {
             const resourcesGrid = document.getElementById('resourcesGrid');
             const furnaceGrid = document.getElementById('furnaceResourcesGrid');
+            const craftedGrid = document.getElementById('craftedItemsGrid');
             resourcesGrid.innerHTML = '';
             furnaceGrid.innerHTML = '';
+            craftedGrid.innerHTML = '';
             
-            Object.keys(oreData).forEach(key => {
-                const data = oreData[key];
-                const item = document.createElement('div');
-                item.id = `resource-item-${key}`;
-                item.className = 'resource-item';
+            const allResources = { ...oreData, ...ingotData, ...accessoryData };
+
+            Object.keys(allResources).forEach(key => {
+                 const data = allResources[key];
+                 const item = document.createElement('div');
+                 item.id = `resource-item-${key}`;
+                 item.className = 'resource-item';
+                 
+                 let statsHTML = `<div class="resource-stats" id="resource-stats-${key}"></div>`;
+                 
+                 item.innerHTML = `
+                     <div>
+                         <h3>${data.displayName}</h3>
+                         <p class="value-text">Valor: ${data.value} Moedas</p>
+                     </div>
+                     <div>
+                         <p id="resource-count-${key}">0</p>
+                         ${statsHTML}
+                         <div class="resource-controls">
+                            <button class="sell-button" data-resource="${key}">Vender</button>
+                            <div class="auto-toggle-container auto-sell-container" id="auto-sell-container-${key}" style="display: none;">
+                                <span>Auto</span>
+                                <button class="auto-toggle-button" id="toggle-auto-sell-${key}" data-key="${key}">Off</button>
+                            </div>
+                         </div>
+                     </div>
+                 `;
                 
-                let statsHTML = '';
-                if (key !== 'dirt') {
-                    statsHTML = `<div class="resource-stats" id="resource-stats-${key}"></div>`;
-                }
-
-                item.innerHTML = `
-                    <div>
-                        <h3>${data.displayName}</h3>
-                        <p class="value-text">Valor: ${data.value} Moedas</p>
-                    </div>
-                    <div>
-                        <p id="resource-count-${key}">0</p>
-                        ${statsHTML}
-                        <button class="sell-button" data-resource="${key}">Vender</button>
-                    </div>
-                `;
-                resourcesGrid.appendChild(item);
+                 if (oreData[key]) resourcesGrid.appendChild(item);
+                 else if (ingotData[key]) furnaceGrid.appendChild(item);
+                 else if (accessoryData[key]) craftedGrid.appendChild(item);
             });
             
-            Object.keys(ingotData).forEach(key => {
-                const data = ingotData[key];
-                const item = document.createElement('div');
-                item.id = `resource-item-${key}`;
-                item.className = 'resource-item';
-                item.style.display = 'none'; // Start hidden
-                item.innerHTML = `
-                    <div>
-                        <h3>${data.displayName}</h3>
-                        <p class="value-text">Valor: ${data.value} Moedas</p>
-                    </div>
-                    <div>
-                        <p id="resource-count-${key}">0</p>
-                        <button class="sell-button" data-resource="${key}">Vender</button>
-                    </div>
-                `;
-                furnaceGrid.appendChild(item);
-            });
-
             document.querySelectorAll('.sell-button').forEach(button => {
                 button.addEventListener('click', (e) => {
                     const resourceKey = e.target.dataset.resource;
-                    const data = oreData[resourceKey] || ingotData[resourceKey];
+                    const data = allResources[resourceKey];
                     if (data && state.resources[resourceKey] > 0) {
                         const amountToSell = Math.floor(state.resources[resourceKey] * state.sellMultiplier);
                         if (amountToSell > 0) {
@@ -902,36 +1085,97 @@
                     }
                 });
             });
+
+            document.querySelectorAll('.auto-sell-container .auto-toggle-button').forEach(button => {
+                button.addEventListener('click', (e) => {
+                    const key = e.target.dataset.key;
+                    let targetSet;
+                    if (oreData[key]) targetSet = state.upgrades.autoSellActive;
+                    else if (ingotData[key]) targetSet = state.furnace.autoSellActive;
+                    else if (accessoryData[key]) targetSet = state.crafting.autoSellActive;
+
+                    if (targetSet) {
+                        if (targetSet.has(key)) {
+                            targetSet.delete(key);
+                        } else {
+                            targetSet.add(key);
+                        }
+                        updateResourcesDisplay();
+                    }
+                });
+            });
         }
         
         function updateResourcesDisplay() {
+            // Ores
             Object.keys(oreData).forEach(key => {
                 const data = oreData[key];
                 const item = document.getElementById(`resource-item-${key}`);
                 if (item) {
                     item.style.display = data.unlocked ? 'flex' : 'none';
                     const statsEl = document.getElementById(`resource-stats-${key}`);
-                    if (statsEl) {
-                        const clickChance = (data.baseClickChance + (data.level * data.clickChancePerLevel)) * 100;
-                        const autoChance = (data.baseAutoChance + (data.level * data.autoChancePerLevel)) * 100;
+                    if (statsEl && key !== 'dirt') {
+                        let coalBonus = (key === 'coal' && state.upgrades.coalProspecting.unlocked) ? state.upgrades.coalProspecting.bonus : 0;
+                        const clickChance = (data.baseClickChance + (data.level * data.clickChancePerLevel) + coalBonus) * 100;
+                        const autoChanceValue = (data.baseAutoChance + (data.level * data.autoChancePerLevel) + coalBonus) * state.dirtPerSecond;
+                        const autoChancePercent = autoChanceValue * 100;
+                        const displayAutoChance = Math.min(autoChancePercent, 100);
+                        
+                        let collectionAmount = 1;
+                        bonusLevels.forEach(bonusLevel => {
+                            if (data.level >= bonusLevel && bonusQuantities[bonusLevel]) {
+                                collectionAmount += bonusQuantities[bonusLevel];
+                            }
+                        });
+
                         statsEl.innerHTML = `
-                            <div>Chance/clique: ${clickChance.toFixed(2)}%</div>
-                            <div>Chance/seg: ${autoChance.toFixed(2)}%</div>
+                            <div>Chance/clique: ${(clickChance).toFixed(2)}%</div>
+                            <div>Chance/seg: ${(displayAutoChance).toFixed(2)}%</div>
+                            <div>Qtd de Coleta: ${formatNumber(collectionAmount, 0)}</div>
                         `;
+                    } else if (statsEl) {
+                        statsEl.innerHTML = ''; // Clear stats for dirt
+                    }
+                    const autoSellContainer = document.getElementById(`auto-sell-container-${key}`);
+                    if (autoSellContainer) {
+                        autoSellContainer.style.display = state.upgrades.autoSell.unlocked ? 'flex' : 'none';
+                        const toggleButton = document.getElementById(`toggle-auto-sell-${key}`);
+                        const isActive = state.upgrades.autoSellActive.has(key);
+                        toggleButton.classList.toggle('active', isActive);
+                        toggleButton.textContent = isActive ? 'On' : 'Off';
                     }
                 }
             });
-             Object.keys(ingotData).forEach(key => {
+
+            // Ingots
+            Object.keys(ingotData).forEach(key => {
                 const item = document.getElementById(`resource-item-${key}`);
                 if (item) {
-                    let canDisplay = true;
-                    for (const resource in ingotData[key].inputs) {
-                        if (!oreData[resource]?.unlocked) {
-                            canDisplay = false;
-                            break;
-                        }
+                    item.style.display = state.miningLevel >= ingotData[key].unlockLevel ? 'flex' : 'none';
+                    const autoSellContainer = document.getElementById(`auto-sell-container-${key}`);
+                    if (autoSellContainer) {
+                        autoSellContainer.style.display = state.furnace.autoSell.unlocked ? 'flex' : 'none';
+                        const toggleButton = document.getElementById(`toggle-auto-sell-${key}`);
+                        const isActive = state.furnace.autoSellActive.has(key);
+                        toggleButton.classList.toggle('active', isActive);
+                        toggleButton.textContent = isActive ? 'On' : 'Off';
                     }
-                    item.style.display = canDisplay ? 'flex' : 'none';
+                }
+            });
+
+            // Accessories
+            Object.keys(accessoryData).forEach(key => {
+                const item = document.getElementById(`resource-item-${key}`);
+                if (item) {
+                    item.style.display = state.crafting.level >= accessoryData[key].unlockLevel ? 'flex' : 'none';
+                    const autoSellContainer = document.getElementById(`auto-sell-container-${key}`);
+                    if (autoSellContainer) {
+                        autoSellContainer.style.display = state.crafting.autoSell.unlocked ? 'flex' : 'none';
+                        const toggleButton = document.getElementById(`toggle-auto-sell-${key}`);
+                        const isActive = state.crafting.autoSellActive.has(key);
+                        toggleButton.classList.toggle('active', isActive);
+                        toggleButton.textContent = isActive ? 'On' : 'Off';
+                    }
                 }
             });
         }
@@ -952,8 +1196,11 @@
             const container = document.getElementById('miningUpgradesSection');
             container.innerHTML = '';
             
+            createUpgradeElement(container, 'AutoClicker', () => buyUpgrade('autoClicker'));
             createUpgradeElement(container, 'Miners', () => buyUpgrade('miners'));
             createUpgradeElement(container, 'Pickaxe', () => buyUpgrade('pickaxe'));
+            createUpgradeElement(container, 'CoalProspecting', () => buyUpgrade('coalProspecting'));
+            createUpgradeElement(container, 'AutoSellMining', () => buyUpgrade('autoSellMining'));
 
             for (const oreKey in oreData) {
                 if (oreKey === 'dirt') continue;
@@ -963,66 +1210,141 @@
         
         function buyUpgrade(key) {
             const isOre = !!oreData[key];
-            const upgradeData = isOre ? oreData[key] : state.upgrades[key];
-            
-            if (isOre && !upgradeData.unlocked) {
-                if (state.gold >= upgradeData.unlockCost) {
-                    state.gold -= upgradeData.unlockCost;
-                    upgradeData.unlocked = true;
+            const isSpecial = key === 'coalProspecting';
+            const isAutoClicker = key === 'autoClicker';
+            const isAutoSell = key.startsWith('autoSell');
+
+            if (isAutoClicker) {
+                const currentLevel = state.upgrades.autoClicker.level;
+                if (currentLevel < 10) {
+                    const nextLevelData = autoClickerData[currentLevel + 1];
+                    if (state.gold >= nextLevelData.cost) {
+                        state.gold -= nextLevelData.cost;
+                        state.upgrades.autoClicker.level++;
+                        setupAutoClickerInterval();
+                        updateMiningProductionStats();
+                    }
                 }
-            } else {
-                let multiplier = state.upgradeMultiplier;
-                if (multiplier === 'MAX') {
-                    let tempGold = state.gold;
-                    let levelsToBuy = 0;
-                    let currentLevel = isOre ? upgradeData.level : upgradeData.level;
-                    while (true) {
+            } else if (isAutoSell) {
+                let upgrade;
+                if (key === 'autoSellMining') upgrade = state.upgrades.autoSell;
+                else if (key === 'autoSellFurnace') upgrade = state.furnace.autoSell;
+                else if (key === 'autoSellCrafting') upgrade = state.crafting.autoSell;
+                
+                if (upgrade && !upgrade.unlocked && state.gold >= upgrade.cost) {
+                    state.gold -= upgrade.cost;
+                    upgrade.unlocked = true;
+                }
+            }
+            else {
+                const upgradeData = isOre ? oreData[key] : state.upgrades[key];
+                if (isOre && !upgradeData.unlocked) {
+                    if (state.gold >= upgradeData.unlockCost) {
+                        state.gold -= upgradeData.unlockCost;
+                        upgradeData.unlocked = true;
+                    }
+                } else if (isSpecial && !upgradeData.unlocked) {
+                    if (state.gold >= upgradeData.cost) {
+                        state.gold -= upgradeData.cost;
+                        upgradeData.unlocked = true;
+                    }
+                } else {
+                    let multiplier = state.upgradeMultiplier;
+                    if (multiplier === 'MAX') {
+                        let tempGold = state.gold;
+                        let levelsToBuy = 0;
+                        let currentLevel = isOre ? upgradeData.level : upgradeData.level;
+                        while (true) {
+                            const cost = calculateCost(
+                                isOre ? upgradeData.upgradeBaseCost : upgradeData.baseCost,
+                                isOre ? upgradeData.costMultiplier : upgradeData.costMultiplier,
+                                currentLevel,
+                                bonusLevels.includes(currentLevel + 1)
+                            );
+                            if (tempGold >= cost) {
+                                tempGold -= cost;
+                                levelsToBuy++;
+                                currentLevel++;
+                            } else {
+                                break;
+                            }
+                        }
+                        multiplier = levelsToBuy;
+                    }
+
+                    for (let i = 0; i < multiplier; i++) {
+                        const currentLevel = isOre ? upgradeData.level : upgradeData.level;
                         const cost = calculateCost(
                             isOre ? upgradeData.upgradeBaseCost : upgradeData.baseCost,
                             isOre ? upgradeData.costMultiplier : upgradeData.costMultiplier,
                             currentLevel,
                             bonusLevels.includes(currentLevel + 1)
                         );
-                        if (tempGold >= cost) {
-                            tempGold -= cost;
-                            levelsToBuy++;
-                            currentLevel++;
+                        if (state.gold >= cost) {
+                            state.gold -= cost;
+                            upgradeData.level++;
                         } else {
-                            break;
+                            break; 
                         }
-                    }
-                    multiplier = levelsToBuy;
-                }
-
-                for (let i = 0; i < multiplier; i++) {
-                    const currentLevel = isOre ? upgradeData.level : upgradeData.level;
-                    const cost = calculateCost(
-                        isOre ? upgradeData.upgradeBaseCost : upgradeData.baseCost,
-                        isOre ? upgradeData.costMultiplier : upgradeData.costMultiplier,
-                        currentLevel,
-                        bonusLevels.includes(currentLevel + 1)
-                    );
-                    if (state.gold >= cost) {
-                        state.gold -= cost;
-                        upgradeData.level++;
-                    } else {
-                        break; // Stop if we can't afford the next level in the sequence
                     }
                 }
             }
             
-            if (!isOre) {
+            if (!isOre && !isAutoClicker) {
                 recalculateProductionStats();
             }
             updateMiningUpgrades();
             updateResourcesDisplay();
         }
 
-
         function updateMiningUpgrades() {
+            // Auto Clicker
+            const autoClicker = state.upgrades.autoClicker;
+            const autoClickerContainer = document.getElementById('upgrade-item-AutoClicker');
+            if (autoClicker.level < 10) {
+                autoClickerContainer.style.display = 'flex';
+                const nextLevelData = autoClickerData[autoClicker.level + 1];
+                document.getElementById('upgrade-info-AutoClicker').innerHTML = `
+                    <h3>Clicador Automático (Nível ${autoClicker.level})</h3>
+                    <p>Próximo Nível: <span class="upgrade-benefit">${nextLevelData.clicksPerSecond.toFixed(2)} cliques/seg</span></p>
+                    <p>Custo: ${formatNumber(nextLevelData.cost)} moedas</p>
+                `;
+                document.getElementById('buy-button-AutoClicker').disabled = state.gold < nextLevelData.cost;
+                document.getElementById('buy-button-AutoClicker').textContent = "Comprar";
+            } else {
+                autoClickerContainer.style.display = 'flex';
+                document.getElementById('upgrade-info-AutoClicker').innerHTML = `
+                    <h3>Clicador Automático (Nível ${autoClicker.level})</h3>
+                    <p>Benefício: <span class="upgrade-benefit">${autoClickerData[autoClicker.level].clicksPerSecond.toFixed(2)} cliques/seg</span></p>
+                    <p>Nível Máximo Atingido</p>
+                `;
+                document.getElementById('buy-button-AutoClicker').disabled = true;
+                document.getElementById('buy-button-AutoClicker').textContent = "Máximo";
+            }
+            const toggleContainer = document.getElementById('auto-clicker-container');
+            if (autoClicker.level > 0) {
+                toggleContainer.style.display = 'flex';
+                updateAutoClickerButton();
+            } else {
+                toggleContainer.style.display = 'none';
+            }
+
+            // Auto Sell Mining
+            const autoSellMining = state.upgrades.autoSell;
+            const autoSellMiningContainer = document.getElementById('upgrade-item-AutoSellMining');
+            autoSellMiningContainer.style.display = autoSellMining.unlocked ? 'none' : 'flex';
+            document.getElementById('upgrade-info-AutoSellMining').innerHTML = `
+                <h3>Venda Automática de Minérios</h3>
+                <p>Benefício: <span class="upgrade-benefit">Desbloqueia a venda automática para minérios.</span></p>
+                <p>Custo: ${formatNumber(autoSellMining.cost)} moedas</p>
+            `;
+            document.getElementById('buy-button-AutoSellMining').disabled = state.gold < autoSellMining.cost;
+
+
             // Miners and Pickaxe
             const miners = state.upgrades.miners;
             const pickaxe = state.upgrades.pickaxe;
+            const coalProspecting = state.upgrades.coalProspecting;
             const minerCost = calculateCost(miners.baseCost, miners.costMultiplier, miners.level, bonusLevels.includes(miners.level + 1));
             const pickaxeCost = calculateCost(pickaxe.baseCost, pickaxe.costMultiplier, pickaxe.level, bonusLevels.includes(pickaxe.level + 1));
             const nextMinerProd = (1 * Math.pow(1.05, miners.level)) + (bonusLevels.includes(miners.level + 1) ? bonusQuantities[miners.level + 1] : 0);
@@ -1056,7 +1378,19 @@
                 <p>Custo: ${formatNumber(pickaxeCost)} moedas</p>`;
             document.getElementById('buy-button-Pickaxe').disabled = state.gold < pickaxeCost;
             
-            // Ore Upgrades
+            const coalUpgradeContainer = document.getElementById('upgrade-item-CoalProspecting');
+            if (state.miningLevel >= 15) {
+                coalUpgradeContainer.style.display = 'flex';
+                document.getElementById('upgrade-info-CoalProspecting').innerHTML = `<h3>Prospecção de Carvão</h3><p>Benefício: <span class="upgrade-benefit">+${coalProspecting.bonus * 100}%</span> chance de Carvão</p><p>Custo: ${formatNumber(coalProspecting.cost)} moedas</p>`;
+                const button = document.getElementById('buy-button-CoalProspecting');
+                button.disabled = state.gold < coalProspecting.cost || coalProspecting.unlocked;
+                 if(coalProspecting.unlocked) {
+                    button.textContent = "Comprado";
+                }
+            } else {
+                coalUpgradeContainer.style.display = 'none';
+            }
+            
             for (const oreKey in oreData) {
                 if (oreKey === 'dirt') continue;
                 const ore = oreData[oreKey];
@@ -1078,12 +1412,12 @@
                         const cost = calculateCost(ore.upgradeBaseCost, ore.costMultiplier, ore.level, bonusLevels.includes(ore.level + 1));
                         const nextBonusLevel = bonusLevels.find(l => l > ore.level);
                         infoEl.innerHTML = `
-                            <h3>Melhorar ${ore.displayName} (Nível ${ore.level})</h3>
+                            <h3>${ore.displayName} (Nível ${ore.level})</h3>
                             <p>Benefício: 
-                                <span class="upgrade-benefit">+${(ore.clickChancePerLevel * 100).toFixed(2)}%</span> chance/clique, 
-                                <span class="upgrade-benefit">+${(ore.autoChancePerLevel * 100).toFixed(2)}%</span> chance/seg
+                                <span class="upgrade-benefit">+${(ore.clickChancePerLevel * 100).toFixed(3)}%</span> chance/clique, 
+                                <span class="upgrade-benefit">+${(ore.autoChancePerLevel * 100).toFixed(4)}%</span> chance/seg
                             </p>
-                            ${nextBonusLevel ? `<p>Próximo Bônus de Qtd: Nível ${nextBonusLevel}</p>` : ''}
+                            ${nextBonusLevel ? `<p>Próximo Bônus de Qtd: <span class="upgrade-benefit">+${bonusQuantities[nextBonusLevel]}</span> no Nível ${nextBonusLevel}</p>` : ''}
                             <p>Custo: ${formatNumber(cost)} moedas</p>`;
                         buttonEl.textContent = 'Melhorar';
                         buttonEl.disabled = state.gold < cost;
@@ -1106,7 +1440,8 @@
                 item.innerHTML = `
                     <div class="recipe-info">
                         <h3>${recipe.displayName}</h3>
-                        <p>Requer: ${Object.entries(recipe.inputs).map(([k, v]) => `${v} ${oreData[k]?.displayName || ingotData[k]?.displayName}`).join(', ')}</p>
+                        <p id="reqs-${key}">Requer: ${Object.entries(recipe.inputs).map(([k, v]) => `${v} ${oreData[k]?.displayName || ingotData[k]?.displayName}`).join(', ')}</p>
+                        <p id="yield-${key}" class="value-text" style="margin-top: 4px;"></p>
                         <div class="craft-progress">
                             <div class="craft-progress-bar" id="progress-${key}"></div>
                         </div>
@@ -1121,7 +1456,7 @@
                 recipeContainer.appendChild(item);
                 
                 document.getElementById(`craft-button-${key}`).addEventListener('click', () => {
-                    startCrafting(key);
+                    startCrafting(key, 'furnace');
                 });
                 
                 document.getElementById(`toggle-button-${key}`).addEventListener('click', (e) => {
@@ -1133,17 +1468,17 @@
                             state.furnace.automatedRecipes.add(toggleKey);
                         }
                     }
-                    updateFurnaceRecipes();
+                    updateFurnaceUI();
                 });
             }
             
             const f = state.furnace;
+            createUpgradeElement(upgradeContainer, 'AutoSellFurnace', () => buyUpgrade('autoSellFurnace'));
             createUpgradeElement(upgradeContainer, 'AutomateFurnace', () => {
                 if(state.gold >= f.automate.baseCost){
                     state.gold -= f.automate.baseCost;
                     f.automate.unlocked = true;
-                    updateFurnaceUpgrades();
-                    updateFurnaceRecipes();
+                    updateFurnaceUI();
                 }
             });
             createUpgradeElement(upgradeContainer, 'FurnaceSlots', () => {
@@ -1151,7 +1486,7 @@
                 if(state.gold >= cost){
                     state.gold -= cost;
                     f.slots.level++;
-                    updateFurnaceUpgrades();
+                    updateFurnaceUI();
                 }
             });
             createUpgradeElement(upgradeContainer, 'IngotsPerCraft', () => {
@@ -1159,7 +1494,7 @@
                 if(state.gold >= cost){
                     state.gold -= cost;
                     f.ingotsPerCraft.level++;
-                    updateFurnaceUpgrades();
+                    updateFurnaceUI();
                 }
             });
             createUpgradeElement(upgradeContainer, 'CraftTime', () => {
@@ -1167,10 +1502,11 @@
                 if(state.gold >= cost){
                     state.gold -= cost;
                     f.timeReduction.level++;
-                    f.timeReduction.reduction += 0.05;
-                    updateFurnaceUpgrades();
+                    f.timeReduction.reduction = Math.min(0.95, f.timeReduction.reduction + 0.05);
+                    updateFurnaceUI();
                 }
             });
+            updateFurnaceUI();
         }
         
         function updateFurnaceRecipes() {
@@ -1178,26 +1514,27 @@
                 const item = document.getElementById(`recipe-item-${key}`);
                 if(!item) continue;
                 
-                let canDisplay = true;
-                for (const resource in ingotData[key].inputs) {
-                    if(!oreData[resource]?.unlocked) {
-                        canDisplay = false;
-                        break;
-                    }
-                }
+                const recipe = ingotData[key];
+                const canDisplay = state.miningLevel >= recipe.unlockLevel;
+                
                 item.style.display = canDisplay ? 'flex' : 'none';
                 if (!canDisplay) continue;
 
+                const itemsToCraft = 1 + state.furnace.ingotsPerCraft.level;
+                
+                document.getElementById(`reqs-${key}`).textContent = `Requer: ${Object.entries(recipe.inputs).map(([k, v]) => `${v * itemsToCraft} ${oreData[k]?.displayName || ingotData[k]?.displayName}`).join(', ')}`;
+                document.getElementById(`yield-${key}`).textContent = `Produz: ${itemsToCraft} Lingote(s)`;
+
                 const activeCraft = state.furnace.activeCrafts.find(c => c.key === key);
                 let canCraft = true;
-                for (const resource in ingotData[key].inputs) {
-                    if(state.resources[resource] < ingotData[key].inputs[resource]) {
+                for (const resource in recipe.inputs) {
+                    if(state.resources[resource] < recipe.inputs[resource] * itemsToCraft) {
                         canCraft = false;
                         break;
                     }
                 }
                 
-                document.getElementById(`craft-button-${key}`).disabled = !canCraft || !!activeCraft;
+                document.getElementById(`craft-button-${key}`).disabled = !canCraft || !!activeCraft || state.furnace.activeCrafts.length >= state.furnace.slots.level;
                 
                 const toggleContainer = document.getElementById(`auto-container-${key}`);
                 toggleContainer.style.display = state.furnace.automate.unlocked ? 'flex' : 'none';
@@ -1209,13 +1546,13 @@
         }
         
         function updateFurnaceProgress() {
-            document.querySelectorAll('.craft-time-text').forEach(el => el.textContent = '');
-            document.querySelectorAll('.craft-progress-bar').forEach(el => el.style.width = '0%');
+            document.querySelectorAll('#furnaceRecipes .craft-time-text').forEach(el => el.textContent = '');
+            document.querySelectorAll('#furnaceRecipes .craft-progress-bar').forEach(el => el.style.width = '0%');
             state.furnace.activeCrafts.forEach(craft => {
                 const progressBar = document.getElementById(`progress-${craft.key}`);
                 const timeLeftEl = document.getElementById(`time-left-${craft.key}`);
                 if (progressBar && timeLeftEl) {
-                    const timeLeft = (craft.totalTime - craft.progress) / 1000;
+                    const timeLeft = Math.max(0, (craft.totalTime - craft.progress) / 1000);
                     progressBar.style.width = `${(craft.progress / craft.totalTime) * 100}%`;
                     timeLeftEl.textContent = `${timeLeft.toFixed(1)}s`;
                 }
@@ -1224,38 +1561,278 @@
 
         function updateFurnaceUpgrades() {
             const f = state.furnace;
+            const maxSlots = Object.keys(ingotData).length;
+
+            const autoSellFurnace = state.furnace.autoSell;
+            const autoSellFurnaceContainer = document.getElementById('upgrade-item-AutoSellFurnace');
+            autoSellFurnaceContainer.style.display = autoSellFurnace.unlocked ? 'none' : 'flex';
+            document.getElementById('upgrade-info-AutoSellFurnace').innerHTML = `
+                <h3>Venda Automática de Lingotes</h3>
+                <p>Benefício: <span class="upgrade-benefit">Desbloqueia a venda automática para lingotes.</span></p>
+                <p>Custo: ${formatNumber(autoSellFurnace.cost)} moedas</p>
+            `;
+            document.getElementById('buy-button-AutoSellFurnace').disabled = state.gold < autoSellFurnace.cost;
             
             const autoContainer = document.getElementById('upgrade-item-AutomateFurnace');
             autoContainer.style.display = f.automate.unlocked ? 'none' : 'flex';
-            document.getElementById('upgrade-info-AutomateFurnace').innerHTML = `<h3>Automatizar Fornalha</h3><p>Custo: ${formatNumber(f.automate.baseCost)} moedas</p>`;
+            document.getElementById('upgrade-info-AutomateFurnace').innerHTML = `<h3>Automatizar Fornalha</h3><p>Benefício: <span class="upgrade-benefit">Cria automaticamente receitas ativadas.</span></p><p>Custo: ${formatNumber(f.automate.baseCost)} moedas</p>`;
             document.getElementById('buy-button-AutomateFurnace').disabled = state.gold < f.automate.baseCost;
 
             const slotCost = calculateCost(f.slots.baseCost, f.slots.costMultiplier, f.slots.level - 1, false);
-            document.getElementById('upgrade-info-FurnaceSlots').innerHTML = `<h3>Espaço de Fornalha (Nível ${f.slots.level})</h3><p>Benefício: <span class="upgrade-benefit">+1 Espaço</span></p><p>Custo: ${formatNumber(slotCost)}</p>`;
-            document.getElementById('buy-button-FurnaceSlots').disabled = state.gold < slotCost || f.slots.level >= 5;
+            document.getElementById('upgrade-info-FurnaceSlots').innerHTML = `<h3>Espaços de Fornalha (Nível ${f.slots.level})</h3><p>Benefício: <span class="upgrade-benefit">Permite fundir ${f.slots.level} item(s) de cada vez.</span></p><p>Custo: ${formatNumber(slotCost)}</p>`;
+            document.getElementById('buy-button-FurnaceSlots').disabled = state.gold < slotCost || f.slots.level >= maxSlots;
 
             const ingotsCost = calculateCost(f.ingotsPerCraft.baseCost, f.ingotsPerCraft.costMultiplier, f.ingotsPerCraft.level, false);
-            document.getElementById('upgrade-info-IngotsPerCraft').innerHTML = `<h3>Lingotes por Vez (Nível ${f.ingotsPerCraft.level})</h3><p>Benefício: <span class="upgrade-benefit">+1 Lingote</span></p><p>Custo: ${formatNumber(ingotsCost)}</p>`;
-            document.getElementById('buy-button-IngotsPerCraft').disabled = state.gold < ingotsCost || f.ingotsPerCraft.level >= 10;
+            document.getElementById('upgrade-info-IngotsPerCraft').innerHTML = `<h3>Lingotes por Vez (Nível ${f.ingotsPerCraft.level})</h3><p>Benefício: <span class="upgrade-benefit">Cria +${f.ingotsPerCraft.level} lingote(s) extra(s) por vez.</span></p><p>Custo: ${formatNumber(ingotsCost)}</p>`;
+            document.getElementById('buy-button-IngotsPerCraft').disabled = state.gold < ingotsCost;
             
             const timeCost = calculateCost(f.timeReduction.baseCost, f.timeReduction.costMultiplier, f.timeReduction.level, false);
-            document.getElementById('upgrade-info-CraftTime').innerHTML = `<h3>Redução de Tempo (Nível ${f.timeReduction.level})</h3><p>Benefício: <span class="upgrade-benefit">+5%</span></p><p>Custo: ${formatNumber(timeCost)}</p>`;
-            document.getElementById('buy-button-CraftTime').disabled = state.gold < timeCost || f.timeReduction.level >= 10;
+            document.getElementById('upgrade-info-CraftTime').innerHTML = `<h3>Redução de Tempo (Nível ${f.timeReduction.level})</h3><p>Benefício: <span class="upgrade-benefit">-${(f.timeReduction.reduction * 100).toFixed(0)}%</span> no tempo de fundição.</p><p>Custo: ${formatNumber(timeCost)}</p>`;
+            document.getElementById('buy-button-CraftTime').disabled = state.gold < timeCost || f.timeReduction.level >= 19;
+        }
+
+        function buildCraftingUI() {
+            const recipeContainer = document.getElementById('craftingRecipes');
+            const upgradeContainer = document.getElementById('craftingUpgrades');
+            recipeContainer.innerHTML = '';
+            upgradeContainer.innerHTML = '';
+
+            for (const key in accessoryData) {
+                const recipe = accessoryData[key];
+                const item = document.createElement('div');
+                item.id = `recipe-item-${key}`;
+                item.className = 'recipe-item';
+                item.innerHTML = `
+                    <div class="recipe-info">
+                        <h3>${recipe.displayName}</h3>
+                        <p id="reqs-crafting-${key}">Requer: ${Object.entries(recipe.inputs).map(([k, v]) => `${v} ${ingotData[k]?.displayName}`).join(', ')}</p>
+                        <p id="yield-crafting-${key}" class="value-text" style="margin-top: 4px;"></p>
+                        <div class="craft-progress">
+                            <div class="craft-progress-bar" id="progress-${key}"></div>
+                        </div>
+                        <p class="craft-time-text" id="time-left-${key}"></p>
+                    </div>
+                    <button class="craft-button" id="craft-button-${key}">Criar</button>
+                    <div class="auto-toggle-container" id="auto-container-crafting-${key}" style="display: none;">
+                        <span>Auto</span>
+                        <button class="auto-toggle-button" id="toggle-button-crafting-${key}" data-key="${key}">Off</button>
+                    </div>
+                `;
+                recipeContainer.appendChild(item);
+                
+                document.getElementById(`craft-button-${key}`).addEventListener('click', () => {
+                    startCrafting(key, 'crafting');
+                });
+                
+                document.getElementById(`toggle-button-crafting-${key}`).addEventListener('click', (e) => {
+                    const toggleKey = e.target.dataset.key;
+                    if(state.crafting.automatedRecipes.has(toggleKey)){
+                        state.crafting.automatedRecipes.delete(toggleKey);
+                    } else {
+                        if(state.crafting.automatedRecipes.size < state.crafting.slots.level){
+                            state.crafting.automatedRecipes.add(toggleKey);
+                        }
+                    }
+                    updateCraftingUI();
+                });
+            }
+            
+            const c = state.crafting;
+            createUpgradeElement(upgradeContainer, 'AutoSellCrafting', () => buyUpgrade('autoSellCrafting'));
+            createUpgradeElement(upgradeContainer, 'AutomateCrafting', () => {
+                if(state.gold >= c.automate.baseCost){
+                    state.gold -= c.automate.baseCost;
+                    c.automate.unlocked = true;
+                    updateCraftingUI();
+                }
+            });
+            createUpgradeElement(upgradeContainer, 'CraftingSlots', () => {
+                const cost = calculateCost(c.slots.baseCost, c.slots.costMultiplier, c.slots.level - 1, false);
+                if(state.gold >= cost){
+                    state.gold -= cost;
+                    c.slots.level++;
+                    updateCraftingUI();
+                }
+            });
+            createUpgradeElement(upgradeContainer, 'ItemsPerCraft', () => {
+                const cost = calculateCost(c.itemsPerCraft.baseCost, c.itemsPerCraft.costMultiplier, c.itemsPerCraft.level, false);
+                if(state.gold >= cost){
+                    state.gold -= cost;
+                    c.itemsPerCraft.level++;
+                    updateCraftingUI();
+                }
+            });
+            createUpgradeElement(upgradeContainer, 'CraftingTimeReduction', () => {
+                const cost = calculateCost(c.timeReduction.baseCost, c.timeReduction.costMultiplier, c.timeReduction.level, false);
+                if(state.gold >= cost){
+                    state.gold -= cost;
+                    c.timeReduction.level++;
+                    c.timeReduction.reduction = Math.min(0.95, c.timeReduction.reduction + 0.05);
+                    updateCraftingUI();
+                }
+            });
+            updateCraftingUI();
+        }
+        
+        function updateCraftingRecipes() {
+            for (const key in accessoryData) {
+                const item = document.getElementById(`recipe-item-${key}`);
+                if(!item) continue;
+                
+                const recipe = accessoryData[key];
+                const canDisplay = state.crafting.level >= recipe.unlockLevel;
+                
+                item.style.display = canDisplay ? 'flex' : 'none';
+                if (!canDisplay) continue;
+
+                const itemsToCraft = 1 + state.crafting.itemsPerCraft.level;
+                const totalQuantity = itemsToCraft * recipe.quantity;
+
+                document.getElementById(`reqs-crafting-${key}`).textContent = `Requer: ${Object.entries(recipe.inputs).map(([k, v]) => `${v * itemsToCraft} ${ingotData[k]?.displayName}`).join(', ')}`;
+                document.getElementById(`yield-crafting-${key}`).textContent = `Produz: ${totalQuantity} Acessório(s)`;
+
+                const activeCraft = state.crafting.activeCrafts.find(c => c.key === key);
+                let canCraft = true;
+                for (const resource in recipe.inputs) {
+                    if(state.resources[resource] < recipe.inputs[resource] * itemsToCraft) {
+                        canCraft = false;
+                        break;
+                    }
+                }
+                
+                document.getElementById(`craft-button-${key}`).disabled = !canCraft || !!activeCraft || state.crafting.activeCrafts.length >= state.crafting.slots.level;
+                
+                const toggleContainer = document.getElementById(`auto-container-crafting-${key}`);
+                toggleContainer.style.display = state.crafting.automate.unlocked ? 'flex' : 'none';
+                const toggleButton = document.getElementById(`toggle-button-crafting-${key}`);
+                const isActive = state.crafting.automatedRecipes.has(key);
+                toggleButton.classList.toggle('active', isActive);
+                toggleButton.textContent = isActive ? 'On' : 'Off';
+            }
+        }
+        
+        function updateCraftingProgress() {
+            document.querySelectorAll('#craftingRecipes .craft-time-text').forEach(el => el.textContent = '');
+            document.querySelectorAll('#craftingRecipes .craft-progress-bar').forEach(el => el.style.width = '0%');
+            state.crafting.activeCrafts.forEach(craft => {
+                const progressBar = document.getElementById(`progress-${craft.key}`);
+                const timeLeftEl = document.getElementById(`time-left-${craft.key}`);
+                if (progressBar && timeLeftEl) {
+                    const timeLeft = Math.max(0, (craft.totalTime - craft.progress) / 1000);
+                    progressBar.style.width = `${(craft.progress / craft.totalTime) * 100}%`;
+                    timeLeftEl.textContent = `${timeLeft.toFixed(1)}s`;
+                }
+            });
+        }
+        
+        function updateCraftingUpgrades() {
+            const c = state.crafting;
+            const maxSlots = Object.keys(accessoryData).length;
+            
+            const autoSellCrafting = state.crafting.autoSell;
+            const autoSellCraftingContainer = document.getElementById('upgrade-item-AutoSellCrafting');
+            autoSellCraftingContainer.style.display = autoSellCrafting.unlocked ? 'none' : 'flex';
+            document.getElementById('upgrade-info-AutoSellCrafting').innerHTML = `
+                <h3>Venda Automática de Acessórios</h3>
+                <p>Benefício: <span class="upgrade-benefit">Desbloqueia a venda automática para acessórios.</span></p>
+                <p>Custo: ${formatNumber(autoSellCrafting.cost)} moedas</p>
+            `;
+            document.getElementById('buy-button-AutoSellCrafting').disabled = state.gold < autoSellCrafting.cost;
+
+            const autoContainer = document.getElementById('upgrade-item-AutomateCrafting');
+            autoContainer.style.display = c.automate.unlocked ? 'none' : 'flex';
+            document.getElementById('upgrade-info-AutomateCrafting').innerHTML = `<h3>Automatizar Artesanato</h3><p>Benefício: <span class="upgrade-benefit">Cria automaticamente receitas ativadas.</span></p><p>Custo: ${formatNumber(c.automate.baseCost)} moedas</p>`;
+            document.getElementById('buy-button-AutomateCrafting').disabled = state.gold < c.automate.baseCost;
+
+            const slotCost = calculateCost(c.slots.baseCost, c.slots.costMultiplier, c.slots.level - 1, false);
+            document.getElementById('upgrade-info-CraftingSlots').innerHTML = `<h3>Espaços de Artesanato (Nível ${c.slots.level})</h3><p>Benefício: <span class="upgrade-benefit">Permite criar ${c.slots.level} item(ns) de cada vez.</span></p><p>Custo: ${formatNumber(slotCost)}</p>`;
+            document.getElementById('buy-button-CraftingSlots').disabled = state.gold < slotCost || c.slots.level >= maxSlots;
+
+            const itemsCost = calculateCost(c.itemsPerCraft.baseCost, c.itemsPerCraft.costMultiplier, c.itemsPerCraft.level, false);
+            document.getElementById('upgrade-info-ItemsPerCraft').innerHTML = `<h3>Acessórios por Vez (Nível ${c.itemsPerCraft.level})</h3><p>Benefício: <span class="upgrade-benefit">Cria +${c.itemsPerCraft.level} acessório(s) extra(s) por vez.</span></p><p>Custo: ${formatNumber(itemsCost)}</p>`;
+            document.getElementById('buy-button-ItemsPerCraft').disabled = state.gold < itemsCost || c.itemsPerCraft.level >= 10;
+            
+            const timeCost = calculateCost(c.timeReduction.baseCost, c.timeReduction.costMultiplier, c.timeReduction.level, false);
+            document.getElementById('upgrade-info-CraftingTimeReduction').innerHTML = `<h3>Redução de Tempo (Nível ${c.timeReduction.level})</h3><p>Benefício: <span class="upgrade-benefit">-${(c.timeReduction.reduction * 100).toFixed(0)}%</span> no tempo de criação.</p><p>Custo: ${formatNumber(timeCost)}</p>`;
+            document.getElementById('buy-button-CraftingTimeReduction').disabled = state.gold < timeCost || c.timeReduction.level >= 19;
+        }
+
+        function setupAutoClickerInterval() {
+            if (autoClickerIntervalId) {
+                clearInterval(autoClickerIntervalId);
+            }
+            const level = state.upgrades.autoClicker.level;
+            if (level > 0) {
+                const clicksPerSecond = autoClickerData[level].clicksPerSecond;
+                const intervalTime = 1000 / clicksPerSecond;
+                autoClickerIntervalId = setInterval(() => {
+                    if (state.autoClickerActive) {
+                        mineOres();
+                    }
+                }, intervalTime);
+            }
+        }
+
+        function updateAutoClickerButton() {
+            const button = document.getElementById('toggle-auto-clicker');
+            if (state.autoClickerActive) {
+                button.classList.add('active');
+                button.textContent = 'On';
+            } else {
+                button.classList.remove('active');
+                button.textContent = 'Off';
+            }
         }
         
         // --- PERSISTÊNCIA ---
         function saveGame() {
-            const savableState = { ...state, furnace: { ...state.furnace, automatedRecipes: [...state.furnace.automatedRecipes] } };
-            localStorage.setItem('idleMinerSave', JSON.stringify(savableState));
+            try {
+                const savableState = { ...state, 
+                    upgrades: { ...state.upgrades, autoSellActive: [...state.upgrades.autoSellActive] },
+                    furnace: { ...state.furnace, automatedRecipes: [...state.furnace.automatedRecipes], autoSellActive: [...state.furnace.autoSellActive] },
+                    crafting: { ...state.crafting, automatedRecipes: [...state.crafting.automatedRecipes], autoSellActive: [...state.crafting.autoSellActive] }
+                };
+                localStorage.setItem('idleMinerSave', JSON.stringify(savableState));
+            } catch (e) {
+                console.error("Failed to save game:", e);
+            }
         }
 
         function loadGame() {
             const savedData = localStorage.getItem('idleMinerSave');
             if (savedData) {
-                const loadedState = JSON.parse(savedData);
-                Object.assign(state, loadedState);
-                state.furnace.automatedRecipes = new Set(loadedState.furnace.automatedRecipes);
+                try {
+                    const loadedState = JSON.parse(savedData);
+                    const initialState = getInitialState();
+                    state = deepMerge(initialState, loadedState);
+                    state.upgrades.autoSellActive = new Set(loadedState.upgrades.autoSellActive || []);
+                    state.furnace.automatedRecipes = new Set(loadedState.furnace.automatedRecipes || []);
+                    state.furnace.autoSellActive = new Set(loadedState.furnace.autoSellActive || []);
+                    if (loadedState.crafting) {
+                        state.crafting.automatedRecipes = new Set(loadedState.crafting.automatedRecipes || []);
+                        state.crafting.autoSellActive = new Set(loadedState.crafting.autoSellActive || []);
+                    }
+                } catch (e) {
+                    console.error("Failed to load save data, starting fresh.", e);
+                    state = getInitialState();
+                }
             }
+        }
+
+        function deepMerge(target, source) {
+            for (const key in source) {
+                if (source[key] && typeof source[key] === 'object' && !Array.isArray(source[key]) && ! (source[key] instanceof Set)) {
+                    if (!target[key]) {
+                        Object.assign(target, { [key]: {} });
+                    }
+                    deepMerge(target[key], source[key]);
+                } else {
+                    if (key in target) {
+                        target[key] = source[key];
+                    }
+                }
+            }
+            return target;
         }
 
 
@@ -1268,18 +1845,29 @@
                 updateDynamicUI();
             });
             
+            document.getElementById('toggle-auto-clicker').addEventListener('click', () => {
+                state.autoClickerActive = !state.autoClickerActive;
+                updateAutoClickerButton();
+            });
+            
             document.getElementById('miningTabButton').addEventListener('click', () => openTab('miningTab'));
             document.getElementById('furnaceTabButton').addEventListener('click', () => openTab('furnaceTab'));
+            document.getElementById('craftingTabButton').addEventListener('click', () => openTab('craftingTab'));
 
             setInterval(() => {
                 autoMineOres();
-                processFurnace();
+                autoSellResources();
+                processQueue(state.furnace, ingotData);
+                if (state.miningLevel >= 20) {
+                    processQueue(state.crafting, accessoryData);
+                }
                 updateDynamicUI();
             }, 1000);
             
-            setInterval(saveGame, 3000);
+            setInterval(saveGame, 5000);
 
             recalculateProductionStats();
+            setupAutoClickerInterval();
             buildFullUI();
             updateResourcesDisplay();
             updateButtonStates();
